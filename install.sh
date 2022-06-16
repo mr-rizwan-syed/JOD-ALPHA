@@ -14,9 +14,12 @@ go install github.com/hahwul/dalfox/v2@latest
 go install github.com/haccer/subjack@latest
 go install github.com/tomnomnom/unfurl@latest
 
+apt install dnsrecon -y
+
 go install -v github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest
 nuclei -u
 nuclei -ut 
+
 
 git clone https://github.com/1ndianl33t/Gf-Patterns ~/.gf
 
