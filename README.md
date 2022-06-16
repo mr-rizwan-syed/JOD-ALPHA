@@ -1,5 +1,9 @@
 # JOD-ALPHA
 
+1. Simple and modular code base making it easy to contribute.
+2. Fast And fully configurable flags to probe multiple elements.
+3. Supports just a target domain as an input.
+
 ## Installation 
 
 `curl -L https://raw.githubusercontent.com/mr-rizwan-syed/JOD-ALPHA/main/install.sh | bash`
