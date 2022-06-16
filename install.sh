@@ -23,5 +23,6 @@ git clone https://github.com/1ndianl33t/Gf-Patterns ~/.gf
 git clone https://github.com/r00tkie/grep-pattern.git /tmp/grep-pattern
 mv /tmp/grep-pattern/* ~/.gf/
 
-
 pip install csvkit
+
+wget https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-5000.txt -P ./MISC/
