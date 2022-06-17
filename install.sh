@@ -17,7 +17,7 @@ go install github.com/tomnomnom/unfurl@latest
 apt install dnsrecon -y
 
 go install -v github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest
-nuclei -u
+nuclei -update
 nuclei -ut 
 
 
