@@ -12,7 +12,11 @@
 
 `cd JOD-ALPHA`
 
-`./JOD-ALPHA.sh -d target domain.com`
+`chmod +x *.sh`
+
+`./install.sh`
+
+`./JOD-ALPHA.sh -d target domain.com -all`
 
 ```
 └─# ./JOD-ALPHA.sh -h
