@@ -6,8 +6,6 @@
 
 ## Installation 
 
-`curl -L https://raw.githubusercontent.com/mr-rizwan-syed/JOD-ALPHA/main/install.sh | bash`
-
 `git clone https://github.com/mr-rizwan-syed/JOD-ALPHA`
 
 `cd JOD-ALPHA`
@@ -41,6 +39,9 @@ Usage: ./jod-alpha.sh [option]
     -i    : Show interactive menu
     -h    : Show this help
 ```
+
+### Optional
+`curl -L https://raw.githubusercontent.com/mr-rizwan-syed/JOD-ALPHA/main/install.sh | bash`
 
 ## Acknowledgement
 
