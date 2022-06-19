@@ -16,13 +16,13 @@ WUL=`tput smul`
 function trap_ctrlc ()
 {
     echo "Ctrl-C caught...performing clean up"
-
     echo "Doing cleanup"
     trap "kill 0" EXIT
     exit 2
 }
 
 trap "trap_ctrlc" 4
+
 
 banner(){
     echo '
@@ -35,23 +35,150 @@ banner(){
  '                                                                  
 }
 
-
-# do something
 function counter(){
     sdc=Results/$domain/subdomains.txt
-    sdb=Results/$domain/dnsxout.txt 
-    apache=Results/$domain/apache-urls.txt
-    apachetomcat=Results/$domain/apache-tomcat-urls.txt
-    wp=Results/$domain/wordpress-urls.txt
-    drupal=Results/$domain/drupal-urls.txt
-    joomla=Results/$domain/joomla-urls.txt
+    psd=Results/$domain/potential-sd.txt
+    apache=Results/$domain/apache-sd.txt
+    apachetomcat=Results/$domain/apache-tomcat-sd.txt
+    wp=Results/$domain/wordpress-sd.txt
+    drupal=Results/$domain/drupal-sd.txt
+    joomla=Results/$domain/joomla-sd.txt
     jira=Results/$domain/jira-urls.txt
     gitl=Results/$domain/gitlab-urls.txt
     jboss=Results/$domain/jboss-urls.txt
     bigip=Results/$domain/bigip-urls.txt
 
+}
+
+
+function dnsreconbrute(){
+
+        function updatesd(){
+            echo "Subdomain File >>>> $sdc"
+            [ -f $sdc ] && echo -e "${GREEN}[*]${RESET}Total Passive Subdomains Collected by Subfinder${YELLOW} [$(cat $sdc | wc -l)]${RESET} "
+            echo "Updating DNSRecon Output to Subdomains.txt"
+            csvcut -c Name Results/$domain/dnsreconoutput.csv | grep -v Name | anew Results/$domain/subdomains.txt
+            [ -f $sdc ] && echo -e "${GREEN}[*]${RESET}Total Subdomains Collected by DNSRecon${YELLOW} [$(cat $sdc | wc -l)]${RESET}"
+        } 
+
+        function subdomain_brute(){
+
+            [ -f $sdc ] && echo -e "${GREEN}[*]${RESET}Total Passive Subdomains Collected${YELLOW} [$(cat $sdc | wc -l)]${RESET} "
+                
+            echo "${BLUE}[+]${RESET}Initiating DNSRecon Bruteforcing"
+            dnsrecon -d $domain -D $(pwd)/MISC/subdomains-top1million-5000.txt -t brt -c $(pwd)/Results/$domain/dnsreconoutput.csv
+            csvcut -c Name Results/$domain/dnsreconoutput.csv | grep -v Name | anew Results/$domain/subdomains.txt > Results/$domain/dnsreconurl.txt
+           
+            find Results/$domain -type f -empty -print -delete
+            
+            dnsreconsd=$(cat Results/$domain/dnsreconurl.txt | wc -l)
+            sed -i -e "/dnsreconsd=/ s/=.*/=$dnsreconsd/" Results/$domain/results.log
+            dnsbrtc=$(cat Results/$domain/results.log | grep dnsreconsd | cut -d = -f 2)
+
+            [ -f $sdc ] && echo -e "${GREEN}[*]${RESET}Total Subdomains Collected by DNSRecon${YELLOW} $dnsbrtc ${RESET}"
+
+
+            #dnsx -silent -w MISC/subdomains-top1million-5000.txt -d $domain | anew Results/$domain/dnsxout.txt
+            #cat Results/$domain/dnsxout.txt | anew Results/$domain/subdomains.txt
+        }
+        
+        ###########
+        if is_dnsbrute_checker; then
+            echo "DNSBrute File Already Exist: Results/$domain/dnsreconoutput.csv"
+        fi
+        ###########
+
+
+}
+
+function subdomains(){
+    echo "${GREEN}[1] Gathering Subdomain${RESET}"
+    subfinder -d $domain -silent | anew Results/$domain/subdomains.txt
+    wait
+
+    #sdc=Results/$domain/subdomains.txt
+    
+    subfindersd=$(cat $sdc | wc -l)
+    sed -i -e "/subfindersd=/ s/=.*/=$subfindersd/" Results/$domain/results.log
+    sdc1=$(cat Results/$domain/results.log | grep subfindersd | cut -d = -f 2)
+    [ -f $sdc ] && echo -e "${GREEN}[*]${RESET}Passive Subdomains Collected${YELLOW} $sdc1 ${RESET}"
+
+    if [[ $dnsreconbrute = "true" ]]; then
+        #is_dnsbrute_checker | updatesd && echo "updatesd" || return
+        if is_dnsbrute_checker; then
+            echo "DNSBrute File Already Exist: Results/$domain/dnsreconoutput.csv"
+            updatesd && return
+        else
+            echo "DNS Recon Subdomain Bruteforcing Scan Initiated"
+            subdomain_brute
+        fi
+    fi
+
+    echo "${GREEN}[+]${RESET}Probing all Subdomains [Collecting StatusCode,Title,Tech,cname...]"    
+    cat Results/$domain/subdomains.txt | httpx -silent -sc -content-type -location -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o Results/$domain/$domain-probed.csv
+    csvcut -c url,status-code Results/$domain/$domain-probed.csv | egrep -iv "401|403|404" | cut -d ',' -f 1 | grep -v url | anew Results/$domain/potential-sd.txt
+    csvcut -c url Results/$domain/$domain-probed.csv | cut -d ',' -f 1 | grep -v url | anew Results/$domain/all-sd-url.txt
+    cat Results/$domain/all-sd-url.txt | sed 's/https\?:\/\///' | cut -d ':' -f 1 | anew Results/$domain/all-sd-url-stripped.txt
+    webanalyze -update
+    webanalyze -hosts Results/$domain/potential-sd.txt -silent -crawl 2 -redirect -output csv > Results/$domain/webanalyze.csv
+
+    cat Results/$domain/potential-sd.txt | sed 's/https\?:\/\///' | cut -d ':' -f 1 | anew Results/$domain/sub-url-stripped.txt
+
+
+    # Apache Subdomains
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Apache' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Apache' | cut -d ',' -f 1 | anew Results/$domain/apache-sd.txt
+    cat Results/$domain/webanalyze.csv | grep -E 'Apache' | cut -d , -f 1 | anew Results/$domain/apache-sd.txt 
+
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Tomcat' | cut -d ',' -f 1,2 --output-delimiter=" ${MAGENTA}>>>${RESET} "
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Tomcat' | cut -d ',' -f 1 | anew Results/$domain/apache-tomcat-sd.txt
+    cat Results/$domain/webanalyze.csv | grep -E 'Tomcat' | cut -d , -f 1 | anew Results/$domain/apache-tomcat-sd.txt 
+
+    # Nginx Subdomains
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Nginx' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Nginx' | cut -d ',' -f 1 | anew Results/$domain/nginx-sd.txt
+
+    # IIS Subdomains
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'IIS' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'IIS' | cut -d ',' -f 1 | anew Results/$domain/IIS-sd.txt
+    cat Results/$domain/webanalyze.csv | grep -E 'IIS' | cut -d , -f 1 | anew Results/$domain/IIS-sd.txt
+
+
+    # Wordpress Subdomains
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Wordpress|WordPress' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Wordpress|WordPress' | cut -d ',' -f 1 | anew Results/$domain/wordpress-sd.txt
+    cat Results/$domain/webanalyze.csv | grep -E 'WordPress|Wordpress' | cut -d , -f 1 | anew Results/$domain/wordpress-sd.txt
+    
+    # Joomla Subdomains
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Joomla' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Joomla' | cut -d ',' -f 1 | anew Results/$domain/joomla-sd.txt
+    cat Results/$domain/webanalyze.csv | grep -E 'Joomla' | cut -d , -f 1 | anew Results/$domain/joomla-sd.txt
+
+    # Drupal Subdomains
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Drupal' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Drupal' | cut -d ',' -f 1 | anew Results/$domain/drupal-sd.txt
+
+    # Jira Subdomains
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Jira' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Jira' | cut -d ',' -f 1 | anew Results/$domain/jira-sd.txt
+
+    # Gitlab Subdomains
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'GitLab' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'GitLab' | cut -d ',' -f 1 | anew Results/$domain/gitlab-sd.txt
+
+    # JBoss Subdomains
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'JBoss' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'JBoss' | cut -d ',' -f 1 | anew Results/$domain/jboss-sd.txt
+
+    # BigIP Subdomains
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'BigIP' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'BigIP' | cut -d ',' -f 1 | anew Results/$domain/bigip-sd.txt
+
+    # Delete Empty Files in domain Folder
+    find Results/$domain -type f -empty -print -delete
+
     [ -f $sdc ] && echo -e "${GREEN}[+]${RESET}Total Subdomains [$(cat $sdc | wc -l)]"
-    [ -f $sdb ] && echo -e "${GREEN}[+]${RESET}Potential Subdomains [$(cat $sdb | wc -l)]"
+    [ -f $psd ] && echo -e "${GREEN}[+]${RESET}Potential Subdomains [$(cat $psd | wc -l)]"
     [ -f $apache ] && echo -e "${GREEN}[+]${RESET}Apache Subdomains [$(cat $apache | wc -l)]"
     [ -f $apachetomcat ] && echo -e "${GREEN}[+]${RESET}Apache TomcatSubdomains [$(cat $apachetomcat | wc -l)]"
     [ -f $wp ] && echo -e "${GREEN}[+]${RESET}WordPress Subdomains [$(cat $wp | wc -l)]"
@@ -61,109 +188,6 @@ function counter(){
     [ -f $gitl ] && echo -e "${GREEN}[+]${RESET}GitLab Subdomains [$(cat $gitl | wc -l)]" 
     [ -f $jboss ] && echo -e "${GREEN}[+]${RESET}JBoss Subdomains [$(cat $jboss | wc -l)]" 
     [ -f $bigip ] && echo -e "${GREEN}[+]${RESET}BigIP Subdomains [$(cat $bigip | wc -l)]" 
-}
-
-
-function dnsreconbrute(){
-        function subdomain_brute(){
-        echo "${BLUE}[+]${RESET}Initiating DNSRecon Bruteforcing"
-      
-        dnsrecon -d $domain -D $(pwd)/MISC/subdomains-top1million-5000.txt -t brt > Results/$domain/dnsreconoutput.txt
-        cat Results/$domain/dnsreconoutput.txt | cut -d " " -f 4 | grep $domain | anew Results/$domain/dnsbrute.txt
-        cat Results/$domain/dnsbrute.txt | anew Results/$domain/subdomains.txt
-      
-        #dnsx -silent -w MISC/subdomains-top1million-5000.txt -d $domain | anew Results/$domain/dnsxout.txt
-        #cat Results/$domain/dnsxout.txt | anew Results/$domain/subdomains.txt
-
-        sdct=Results/$domain/subdomains.txt
-        echo "${GREEN}[+]${RESET}Total Subdomains including DNS Brute"
-        [ -f $sdct ] && echo -e "${GREEN}[*]${RESET}Total Subdomains ${YELLOW} [$(cat $sdct | wc -l)]${RESET} "
-        
-        }
-
-        if is_dnsbrute_checker; then
-            echo "Results/$domain/dnsbrute.txt File Already Exist" || return
-        else
-            echo $dnsrecon
-            if [[ $dnsreconbrute = "true" ]]
-            then
-                echo "DNS Recon Subdomain Bruteforcing Scan Initiated"
-                subdomain_brute
-            fi
-        fi
-}
-
-function subdomains(){
-    echo "${GREEN}[1] Gathering Subdomain${RESET}"
-    subfinder -d $domain -silent | anew Results/$domain/subdomains.txt
-    wait
-
-    sdc=Results/$domain/subdomains.txt
-    [ -f $sdc ] && echo -e "${GREEN}[*]${RESET}Passive Subdomains Collected${YELLOW} [$(cat $sdc | wc -l)]${RESET}"
-   
-    echo "${GREEN}[+]${RESET}Probing all Subdomains [Collecting StatusCode,Title,Tech,cname...]"
-
-    cat Results/$domain/subdomains.txt | httpx -silent -sc -content-type -location -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o Results/$domain/$domain-probed.csv
-    cat Results/$domain/$domain-probed.csv | cut -d ',' -f 9 | grep -v 'url' | anew Results/$domain/sd-httpx.txt
-    csvcut -c url,status-code Results/$domain/$domain-probed.csv | egrep -iv "401|403|404" | cut -d ',' -f 1 | grep -v url | anew Results/$domain/potential-sd.txt
-    cat Results/$domain/potential-sd.txt | sed 's/https\?:\/\///' | cut -d ':' -f 1 | anew Results/$domain/sub-url-stripped.txt
-
-    # Apache Subdomains
-    echo "${GREEN}Apache Subdomains: ${RESET}"
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Apache' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Apache' | cut -d ',' -f 1 | anew Results/$domain/apache-urls.txt
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Tomcat' | cut -d ',' -f 1,2 --output-delimiter=" ${MAGENTA}>>>${RESET} "
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Tomcat' | cut -d ',' -f 1 | anew Results/$domain/apache-tomcat-urls.txt
-
-    # Nginx Subdomains
-    echo "${GREEN}Nginx  Subdomains: ${RESET}" 
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Nginx' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Nginx' | cut -d ',' -f 1 | anew Results/$domain/nginx-urls.txt
-
-    # IIS Subdomains
-    echo "${GREEN}IIS  Subdomains: ${RESET}"
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'IIS' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'IIS' | cut -d ',' -f 1 | anew Results/$domain/IIS-urls.txt
-
-    # Wordpress Subdomains
-    echo "${GREEN}Wordpress Subdomains: ${RESET}"
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Wordpress|WordPress' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Wordpress|WordPress' | cut -d ',' -f 1 | anew Results/$domain/wordpress-urls.txt
-
-    # Joomla Subdomains
-    echo "${GREEN}Joomla Subdomains: ${RESET}"
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Joomla' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Joomla' | cut -d ',' -f 1 | anew Results/$domain/joomla-urls.txt
-
-    # Drupal Subdomains
-    echo "${GREEN}Drupal Subdomains: ${RESET}"
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Drupal' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Drupal' | cut -d ',' -f 1 | anew Results/$domain/drupal-urls.txt
-
-    # Jira Subdomains
-    echo "${GREEN}Jira Subdomains: ${RESET}"
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Jira' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'Jira' | cut -d ',' -f 1 | anew Results/$domain/jira-urls.txt
-
-    # Gitlab Subdomains
-    echo "${GREEN}GitLab  Subdomains: ${RESET}"
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'GitLab' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'GitLab' | cut -d ',' -f 1 | anew Results/$domain/gitlab-urls.txt
-
-    # JBoss Subdomains
-    echo "${GREEN}JBoss Subdomains: ${RESET}"
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'JBoss' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'JBoss' | cut -d ',' -f 1 | anew Results/$domain/jboss-urls.txt
-
-    # BigIP Subdomains
-    echo "${GREEN}BigIP Subdomains: ${RESET}"
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'BigIP' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-    csvcut -c url,technologies Results/$domain/$domain-probed.csv | grep -E 'BigIP' | cut -d ',' -f 1 | anew Results/$domain/bigip-urls.txt
-
-    # Delete Empty Files in domain Folder
-    find Results/$domain -type f -empty -print -delete
-
-    counter
 }
 
 #########################################################
@@ -198,6 +222,32 @@ function getallurls(){
 # cat allurls.txt | unfurl -u domains
 ################################################################
 
+dirsearchfunction(){
+    rundirsearch(){
+        if is_gfurld_checker; then
+            echo "Results/Subdomains/$URL/ Folder Already Exist" || return
+        else
+            mkdir -p Results/$domain/Subdomains/$URL
+            echo "[${GREEN}I${RESET}] Started Content Discovery on $URL ${RESET}"
+            echo $URL | httpx -silent | { read URL1; dirsearch -u $URL1 -x  301,302,400,401,403,404,500,503 --random-agent --format=csv -o $(pwd)/Results/$domain/Subdomains/$URL/dirsearch.csv; }
+            csvcut -c URL Results/$domain/Subdomains/$URL/dirsearch.csv| grep -v URL | anew Results/$domain/Subdomains/$URL/dirsearchurl.txt
+            find Results/$domain/Subdomains/$URL/ -type f -empty -print -delete
+        fi
+    }
+
+    dirvalidator(){
+        
+        if is_dirsearch_checker; then
+        echo "Dirsearch.csv file  Already Exist for $URL" || return
+        else
+            rundirsearch
+        fi
+    }
+    
+    [ -z "$URL" ] && askurld || dirvalidator
+    echo Got this $URL
+    
+}
 
 #### ParamALL
 
@@ -218,7 +268,7 @@ parametercrawler(){
             #Stripping
             echo -e
             cat Results/$domain/Subdomains/$URL/all-urls.txt | grep "=" | egrep -iv ".(jpg|jpeg|gif|css|tif|tiff|png|ttf|woff|woff2|ico|pdf|svg|txt|js)" | anew Results/$domain/Subdomains/$URL/P-URL.txt
-            cat Results/$domain/Subdomains/$URL/P-URL.txt | sed 's/.*.?//' | sed 's/&/\n/' | sed 's/=.*//' | anew Results/$domain/Subdomains/$URL/JustParameters.txt
+            cat Results/$domain/Subdomains/$URL/P-URL.txt | sed 's/.*.?//' | sed 's/&/\n/' | sed 's/=.*//'|grep -v -E 'http|https'|anew Results/$domain/Subdomains/$URL/JustParameters.txt
             echo "[${GREEN}I${RESET}]Extracting URL with Valid Parameters${RESET}"
             cat Results/$domain/Subdomains/$URL/P-URL.txt | qsinject -i 'FUZZ' -iu -decode > Results/$domain/Subdomains/$URL/qsinjected.txt
             cat Results/$domain/Subdomains/$URL/P-URL.txt | gf xss | qsinject -i 'FUZZ' -iu -decode | anew -q Results/$domain/Subdomains/$URL/xss.txt
@@ -254,14 +304,19 @@ parametercrawler(){
         fi
     }
 
-    [ -z "$URL" ] && askurl || upcvalidator
+    [ -z "$URL" ] && askurlp || upcvalidator
     echo Got this $URL
     
 }
 
-askurl(){
+askurlp(){
         read -p "${RED}URL: ${RESET}" URL && echo -e
         parametercrawler
+    }
+
+askurld(){
+        read -p "${RED}URL: ${RESET}" URL && echo -e
+        dirsearchfunction
     }
 
 runnparamconall(){
@@ -270,6 +325,27 @@ runnparamconall(){
         URL=$subdo
         parametercrawler
     done < "Results/$domain/sub-url-stripped.txt"
+}
+
+runndirsearchonall(){
+    while IFS= read subdo
+    do 
+        URL=$subdo
+        dirsearchfunction
+    done < "Results/$domain/all-sd-url-stripped.txt"
+    trap "trap_ctrlc" 4
+}
+
+alldirsearch(){
+    read -p "${RED}Type ${GREEN}Yes${RESET} ${RED}to do Content Discovery on all Subdomains: ${RESET}" response && echo -e
+    case "$response" in
+        [yY][eE][sS]|[yY]) 
+            runndirsearchonall
+            ;;
+        *)
+            cdchoice
+            ;;
+    esac
 }
 
 allopt(){
@@ -300,6 +376,22 @@ function choicemaker(){
     URL=$d
 }
 
+function cdchoice(){
+      
+    if is_all_sd_checker; then
+    echo "Subdomain File Already Exist" || return
+    else
+        echo "${BLUE}Run Subdomain Scan First"
+    fi
+    
+    echo "${RED}Choose on which domain you want to scan${RESET}"
+    select d in $(<Results/$domain/all-sd-url-stripped.txt);
+    do test "$d\c" && break; 
+    echo ">>> Invalid Selection";
+    done;
+    URL=$d
+}
+
 function startp(){
     while true; do
         choicemaker
@@ -313,6 +405,37 @@ function startp(){
     done
 }
 
+function cdchoiceloop(){
+    while true; do
+        cdchoice
+        dirsearchfunction
+        read -p "${BLUE}Do you want to run it again on each subdomains ${RESET}[y/n]?" yn
+        case $yn in
+            [Yy]* ) cdchoiceloop; break;;
+            [Nn]* ) break;;
+            * ) echo "Please answer yes or no.";;
+        esac
+    done
+}
+
+function contentdiscovery(){
+    while IFS= read sdurl
+    do 
+        URL=$sdurl
+        dirsearchfunction
+    done < "Results/$domain/all-sd-url-stripped.txt" 
+}
+
+
+function subdomaintko(){
+    echo -e "[*] Checking for Subdomain Takeover Scan"
+    subjack -w $project/subdomains/subdomains.txt -t 100 -timeout 30 -c config/config.json > $results/subjacktko.txt && cat $results/subjacktko.txt
+    
+}
+
+
+
+
 ## Below functions checks for existence of result directories
 
 domaindirectorycheck(){
@@ -324,7 +447,9 @@ domaindirectorycheck(){
         echo -e "[${RED}I${RESET}] Results/$domain Directory already exists...${RESET}"
     else
         mkdir -p Results/$domain
+
         echo -e "[${GREEN}I${RESET}] Results/$domain Directory Created${RESET}"
+        cp results.log Results/$domain/
     fi
     
 }
@@ -337,7 +462,7 @@ function checker(){
     }
     
     is_dnsbrute_checker(){
-        test -f "Results/$domain/dnsbrute.txt"
+        test -f "Results/$domain/dnsreconoutput.csv"
     }
 
     is_allurl_checker(){
@@ -352,20 +477,27 @@ function checker(){
         test -f "Results/$domain/Subdomains/$URL/all-urls.txt"
         test -f "Results/$domain/Subdomains/$URL/P-URL.txt"
     }
+    
+    is_dirsearch_checker(){
+        test -d "Results/$domain/Subdomains/$URL/dirsearch.csv"
+    }
+    
+    is_all_sd_checker(){
+        test -f "Results/$domain/all-sd-url.txt"
+        test -f "Results/$domain/all-sd-url-stripped.txt"
+    }
 }
-
-
 
 function getsubdomains(){
     if is_subdomain_checker; then
         echo "Results/$domain/subdomains.txt File Already Exist" || return
-
+        counter
         # Todo: ReRun if requested in argument if rerun=yes then run again
-
     else
+        counter
         subdomains
+        
     fi
-
 }
 
 # Show usage via commandline arguments
@@ -396,10 +528,9 @@ show_menus() {
     echo "  1. Gather Subdomains"
     echo "  2. Collect All URLs"
     echo "  3. Gather Subdomain URLs and run GF Patterns - Choice Menu"
-    echo "  4. Gather All Subdomain URLs and run GF Patterns - Auto"
-    echo "  5. ReRun, Do Assessment Again on the given Domain"
+    echo "  4. ReRun, Do Assessment Again on the given Domain"
     echo "  ---"
-    echo "  6. Exit"
+    echo "  0. Exit"
     echo ""
 }
 
@@ -411,9 +542,8 @@ read_options(){
     1) getsubdomains;;
     2) getallurls;;
     3) startp;;
-    4) allopt;;
     5) rerun;;
-    6) exit 0;;
+    0) exit 0;;
     *) echo -e "${RED}Error...${RESET}" && sleep 2
     esac
 }
@@ -443,16 +573,24 @@ while [[ $# -gt 0 ]]; do
       domain="$2"
       domaindirectorycheck
       checker
+      dnsreconbrute
       getsubdomains
       shift 
       ;;
     -dnsr|--dnsrecon)
       dnsreconbrute="true"
-      dnsreconbrute
       shift 
       ;;
     -gau|--getallurls)
       getallurls
+      shift 
+      ;;
+    -cd|--contentdiscovery)
+      cdchoiceloop
+      shift 
+      ;;
+    -acd|--alldirsearch)
+      alldirsearch
       shift 
       ;;
     -rr|--rerun)
