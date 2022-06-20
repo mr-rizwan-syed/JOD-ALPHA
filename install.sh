@@ -13,8 +13,10 @@ go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest
 go install github.com/hahwul/dalfox/v2@latest
 go install github.com/haccer/subjack@latest
 go install github.com/tomnomnom/unfurl@latest
+go install github.com/rverton/webanalyze/cmd/webanalyze@latest
 
 apt install dnsrecon -y
+apt install dirsearch
 
 go install -v github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest
 nuclei -update
