@@ -479,7 +479,7 @@ function checker(){
     }
     
     is_dirsearch_checker(){
-        test -d "Results/$domain/Subdomains/$URL/dirsearch.csv"
+        test -f "Results/$domain/Subdomains/$URL/dirsearch.csv"
     }
     
     is_all_sd_checker(){
