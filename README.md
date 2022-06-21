@@ -4,6 +4,10 @@
 2. Fast And fully configurable flags to probe multiple elements.
 3. Supports just a target domain as an input.
 
+## Prerequisite
+Install Golang
+`https://tzusec.com/how-to-install-golang-in-kali-linux/`
+
 ## Installation 
 
 `git clone https://github.com/mr-rizwan-syed/JOD-ALPHA`
