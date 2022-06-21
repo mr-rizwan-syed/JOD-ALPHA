@@ -20,7 +20,7 @@ go install github.com/tomnomnom/unfurl@latest
 go install github.com/rverton/webanalyze/cmd/webanalyze@latest
 
 apt install dnsrecon -y
-apt install dirsearch
+apt install dirsearch -y
 
 go install -v github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest
 nuclei -update
@@ -33,5 +33,3 @@ git clone https://github.com/r00tkie/grep-pattern.git /tmp/grep-pattern
 mv /tmp/grep-pattern/* ~/.gf/
 
 pip install csvkit
-
-wget https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/subdomains-top1million-5000.txt -P ./MISC/
