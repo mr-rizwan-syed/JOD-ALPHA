@@ -67,7 +67,7 @@ function dnsreconbrute(){
                 
             echo "${BLUE}[+]${RESET}Initiating DNSRecon Bruteforcing"
             dnsrecon -d $domain -D $(pwd)/MISC/subdomains-top1million-5000.txt -t brt -c $(pwd)/Results/$domain/dnsreconoutput.csv
-            csvcut -c Name Results/$domain/dnsreconoutput.csv | grep -v Name | anew Results/$domain/subdomains.txt > Results/$domain/dnsreconurl.txt
+            csvcut -c Name Results/$domain/dnsreconoutput.csv | grep $domain | grep -v Name | anew Results/$domain/subdomains.txt > Results/$domain/dnsreconurl.txt
            
             find Results/$domain -type f -empty -print -delete
             
@@ -93,7 +93,7 @@ function dnsreconbrute(){
 
 function subdomains(){
     echo "${GREEN}[1] Gathering Subdomain${RESET}"
-    subfinder -d $domain -silent | anew Results/$domain/subdomains.txt
+    subfinder -d $domain | anew Results/$domain/subdomains.txt
     wait
 
     #sdc=Results/$domain/subdomains.txt
@@ -116,11 +116,11 @@ function subdomains(){
 
     echo "${GREEN}[+]${RESET}Probing all Subdomains [Collecting StatusCode,Title,Tech,cname...]"    
     cat Results/$domain/subdomains.txt | httpx -silent -sc -content-type -location -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o Results/$domain/$domain-probed.csv
-    csvcut -c url,status-code Results/$domain/$domain-probed.csv | egrep -iv "401|403|404" | cut -d ',' -f 1 | grep -v url | anew Results/$domain/potential-sd.txt
-    csvcut -c url Results/$domain/$domain-probed.csv | cut -d ',' -f 1 | grep -v url | anew Results/$domain/all-sd-url.txt
-    cat Results/$domain/all-sd-url.txt | sed 's/https\?:\/\///' | cut -d ':' -f 1 | anew Results/$domain/all-sd-url-stripped.txt
+    csvcut -c url,status-code Results/$domain/$domain-probed.csv | egrep -iv "400|401|403|404,500,502,503" | cut -d ',' -f 1 | grep -v url | anew Results/$domain/potential-sd.txt
+    csvcut -c url Results/$domain/$domain-probed.csv | cut -d ',' -f 1 | grep -v url | grep $domain | anew Results/$domain/all-sd-url.txt
+    cat Results/$domain/potential-sd.txt | sed 's/https\?:\/\///' | cut -d ':' -f 1 | grep $domain | anew Results/$domain/all-sd-url-stripped.txt
     webanalyze -update
-    webanalyze -hosts Results/$domain/potential-sd.txt -silent -crawl 2 -redirect -output csv > Results/$domain/webanalyze.csv
+    webanalyze -hosts Results/$domain/potential-sd.txt -silent -crawl 2 -redirect -output csv 2>/dev/null | tee Results/$domain/webanalyze.csv
 
     cat Results/$domain/potential-sd.txt | sed 's/https\?:\/\///' | cut -d ':' -f 1 | anew Results/$domain/sub-url-stripped.txt
 
@@ -231,21 +231,26 @@ dirsearchfunction(){
             echo "[${GREEN}I${RESET}] Started Content Discovery on $URL ${RESET}"
             echo $URL | httpx -silent | { read URL1; dirsearch -u $URL1 -x  301,302,400,401,403,404,500,503 --random-agent --format=csv -o $(pwd)/Results/$domain/Subdomains/$URL/dirsearch.csv; }
             csvcut -c URL Results/$domain/Subdomains/$URL/dirsearch.csv| grep -v URL | anew Results/$domain/Subdomains/$URL/dirsearchurl.txt
-            find Results/$domain/Subdomains/$URL/ -type f -empty -print -delete
+            find Results/$domain/Subdomains/$URL/ -type f -empty -delete
+            find Results/$domain/Subdomains/ -type f -name dirsearchurl.txt | cut -d '/' -f 4 | anew Results/$domain/dirstatuscompleted.txt
+            find Results/$domain/Subdomains/ -type d -empty | cut -d / -f 4 | anew Results/$domain/exclude.txt
+            grep -vf Results/$domain/exclude.txt Results/$domain/all-sd-url-stripped.txt | anew Results/$domain/activesubdomains.txt
+            grep -vf Results/$domain/dirstatuscompleted.txt Results/$domain/activesubdomains.txt | anew Results/$domain/dirstatuspending.txt
+            find Results/$domain/Subdomains/ -type d -empty -delete
         fi
     }
 
     dirvalidator(){
         
         if is_dirsearch_checker; then
-        echo "Dirsearch.csv file  Already Exist for $URL" || return
+            echo "Dirsearch.csv file  Already Exist for $URL"
+            return
         else
             rundirsearch
         fi
     }
     
     [ -z "$URL" ] && askurld || dirvalidator
-    echo Got this $URL
     
 }
 
@@ -255,21 +260,22 @@ parametercrawler(){
     
     runpc(){
     
-        if is_gfurld_checker; then
-            echo "Results/Subdomains/$URL/ Directory Already Exist" || return
+        if is_uniqueparameter_checker; then
+            echo "Parameter Results Exist Already for $URL" 
+            return
         else
-            echo Scannning $URL
             mkdir -p Results/$domain/Subdomains/$URL
             ##waybackurl-gau
             echo -e
+            echo "[${GREEN}I${RESET}] ${GREEN}Getting All URLs of ${RESET}$URL "
             gau $URL | anew Results/$domain/Subdomains/$URL/all-urls.txt
-            echo "[${GREEN}I${RESET}] Done with Gau and Waybackurls ${RESET}"
+            echo "[${GREEN}I${RESET}] ${GREEN}Done with Gau and Waybackurls of ${RESET}$URL"
                
             #Stripping
             echo -e
             cat Results/$domain/Subdomains/$URL/all-urls.txt | grep "=" | egrep -iv ".(jpg|jpeg|gif|css|tif|tiff|png|ttf|woff|woff2|ico|pdf|svg|txt|js)" | anew Results/$domain/Subdomains/$URL/P-URL.txt
             cat Results/$domain/Subdomains/$URL/P-URL.txt | sed 's/.*.?//' | sed 's/&/\n/' | sed 's/=.*//'|grep -v -E 'http|https'|anew Results/$domain/Subdomains/$URL/JustParameters.txt
-            echo "[${GREEN}I${RESET}]Extracting URL with Valid Parameters${RESET}"
+            echo "[${GREEN}I${RESET}]${GREEN}Extracting URL with Valid Parameters of ${RESET}$URL"
             cat Results/$domain/Subdomains/$URL/P-URL.txt | qsinject -i 'FUZZ' -iu -decode > Results/$domain/Subdomains/$URL/qsinjected.txt
             cat Results/$domain/Subdomains/$URL/P-URL.txt | gf xss | qsinject -i 'FUZZ' -iu -decode | anew -q Results/$domain/Subdomains/$URL/xss.txt
             cat Results/$domain/Subdomains/$URL/P-URL.txt | gf sqli | qsinject -i 'FUZZ' -iu -decode | anew -q  Results/$domain/Subdomains/$URL/sqli.txt
@@ -283,10 +289,15 @@ parametercrawler(){
             cat Results/$domain/Subdomains/$URL/P-URL.txt | gf interestingEXT | anew -q Results/$domain/Subdomains/$URL/interestingEXT.txt
             cat Results/$domain/Subdomains/$URL/P-URL.txt | gf img-traversal | anew -q Results/$domain/Subdomains/$URL/img-traversal.txt
             cat Results/$domain/Subdomains/$URL/P-URL.txt | gf php-sources | anew -q Results/$domain/Subdomains/$URL/php-sources.txt
-            cat Results/$domain/Subdomains/$URL/P-URL.txt | gf s3-buckets | anew -q Results/$domain/Subdomains/$URL/s3-buckets.txt
+            #cat Results/$domain/Subdomains/$URL/P-URL.txt | gf s3-buckets | anew -q Results/$domain/Subdomains/$URL/s3-buckets.txt
             cat Results/$domain/Subdomains/$URL/P-URL.txt | gf servers | anew -q Results/$domain/Subdomains/$URL/servers.txt
-            find Results/$domain/Subdomains/$URL/ -type f -empty -print -delete
-            find Results/$domain/Subdomains/ -type d -empty -print -delete
+            echo "[${GREEN}I${RESET}]${GREEN}Done with GF-Pattterns of ${RESET}$URL"
+            find Results/$domain/Subdomains/ -type f -empty -delete
+            find Results/$domain/Subdomains/ -type d -empty | cut -d / -f 4 | anew Results/$domain/exclude.txt
+            grep -vf Results/$domain/exclude.txt Results/$domain/all-sd-url-stripped.txt | anew Results/$domain/activesubdomains.txt
+            find Results/$domain/Subdomains/ -type d -empty -delete
+            unset URL
+           
         fi
 
         #gf-patterns
@@ -297,15 +308,17 @@ parametercrawler(){
     
     upcvalidator(){
         
-        if is_uniqueparameter_checker; then
-        echo "Parameter Results Exist Already for $URL" || return
+        if is_gfurld_checker; then
+            echo "${RED}Results/Subdomains/$URL/ Directory Already Exist${RESET}"
+            return
         else
             runpc
         fi
     }
 
+    trap "trap_ctrlc" 4
+
     [ -z "$URL" ] && askurlp || upcvalidator
-    echo Got this $URL
     
 }
 
@@ -320,19 +333,32 @@ askurld(){
     }
 
 runnparamconall(){
-    while IFS= read subdo
-    do 
-        URL=$subdo
-        parametercrawler
-    done < "Results/$domain/sub-url-stripped.txt"
+    
+    if [[ -f Results/$domain/activesubdomains.txt ]] 
+    then
+        echo "${RED}Running Parameter Finder on Active Subdomains${RESET}"
+        while IFS= read subdo
+        do 
+            URL=$subdo
+            parametercrawler
+        done < "Results/$domain/activesubdomains.txt"
+    else
+        while IFS= read subdo
+        do 
+            URL=$subdo
+            parametercrawler
+        done < "Results/$domain/sub-url-stripped.txt"
+    fi
+
 }
 
 runndirsearchonall(){
+    grep -vf Results/$domain/exclude.txt Results/$domain/all-sd-url-stripped.txt | anew Results/$domain/activesubdomains.txt
     while IFS= read subdo
     do 
-        URL=$subdo
+        URL=$subdo  
         dirsearchfunction
-    done < "Results/$domain/all-sd-url-stripped.txt"
+    done < "Results/$domain/dirstatuspending.txt"
     trap "trap_ctrlc" 4
 }
 
@@ -475,7 +501,6 @@ function checker(){
 
     is_uniqueparameter_checker(){
         test -f "Results/$domain/Subdomains/$URL/all-urls.txt"
-        test -f "Results/$domain/Subdomains/$URL/P-URL.txt"
     }
     
     is_dirsearch_checker(){
