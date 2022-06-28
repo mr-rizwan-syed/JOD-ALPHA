@@ -354,11 +354,17 @@ runnparamconall(){
 
 runndirsearchonall(){
     grep -vf Results/$domain/exclude.txt Results/$domain/all-sd-url-stripped.txt | anew Results/$domain/activesubdomains.txt
+    if test -f "Results/$domain/dirstatuspending.txt"; then
+    	dirv="Results/$domain/dirstatuspending.txt"
+    else
+	dirv="Results/$domain/activesubdomains.txt"
+    fi
+
     while IFS= read subdo
     do 
         URL=$subdo  
         dirsearchfunction
-    done < "Results/$domain/dirstatuspending.txt"
+    done < $dirv
     trap "trap_ctrlc" 4
 }
 
