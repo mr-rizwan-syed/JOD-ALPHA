@@ -106,7 +106,6 @@ function var_checker() {
         print_usage
         exit 1
     else
-        ColorBlue 'Project Directory: '$project \n  
         domaindirectorycheck
     fi
 
@@ -117,6 +116,7 @@ function var_checker() {
         if [[ ${ip} == true ]];then
                 echo IP Module $iplist $ip
                 portscanner $iplist
+                nmapcsvconverter
                 functionhttpx $iplist
                 echo nuclei $iplist
         elif [[ -z ${iplist} ]]; then
@@ -142,6 +142,14 @@ function var_checker() {
     fi
 }
 
+
+nmapcsvconverter(){
+    allxml=$(find Results/$project/nmapscans -type f -name '*.xml' -printf "%p ")
+    xmlcom=$(xmlmerge $allxml > Results/$project/mergefinal.xml)
+    eval $xmlcom
+
+    python3 MISC/xml2csv.py -f Results/$project/mergefinal.xml -csv Results/$project/nmap.csv
+}
 
 portscanner(){
 
