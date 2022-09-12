@@ -28,6 +28,20 @@ ColorBlue () {
 }
 
 
+banner(){
+echo ${green} '
+
+ ██████╗██╗  ██╗ ██████╗ ███╗   ███╗████████╗██╗   ██╗ █████╗ 
+██╔════╝██║  ██║██╔═══██╗████╗ ████║╚══██╔══╝╚██╗ ██╔╝██╔══██╗
+██║     ███████║██║   ██║██╔████╔██║   ██║    ╚████╔╝ ███████║
+██║     ██╔══██║██║   ██║██║╚██╔╝██║   ██║     ╚██╔╝  ██╔══██║
+╚██████╗██║  ██║╚██████╔╝██║ ╚═╝ ██║   ██║      ██║   ██║  ██║
+ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═╝   ╚═╝      ╚═╝   ╚═╝  ╚═╝
+      '  ${reset}                                                      
+}
+
+
+
 function trap_ctrlc ()
 {
     echo "Ctrl-C caught...performing clean up"
@@ -58,10 +72,7 @@ print_usage() {
         Chomtya Usage: [-h] [-p project] [-i IPList] [-h help]
 
         mandatory arguments:
-          -i iplist          Newline-delimmited list of targets. Accepts CIDRs or ranges (192.168.0.1-255)
-          
-        useful arguments:
-          -d  DOMAIN             Specific domain to perform authentication attempts on
+          -i iplist          Newline-delimmited list of targets. Accepts CIDRs or ranges (192.168.0.1-255)        
 	  
         optional arguments:
           -h                     Print this help menu
@@ -116,14 +127,15 @@ function var_checker() {
         if [[ ${ip} == true ]];then
                 echo IP Module $iplist $ip
                 portscanner $iplist
-                nmapcsvconverter
+                nmapconverter
                 functionhttpx $iplist
+                nucleiscanner
                 echo nuclei $iplist
         elif [[ -z ${iplist} ]]; then
             ColorBlue '[I] INFO: IP not specified.. Check -i again\n\n'$iplist  >&2
         fi
 
-        
+        ## Not Implemented - Use JOD-ALPHA
         if [[ ${dom} == true ]];then
                 echo Domain Module $domain $true
                 echo subdomainscan $domain
@@ -143,12 +155,13 @@ function var_checker() {
 }
 
 
-nmapcsvconverter(){
+nmapconverter(){
     allxml=$(find Results/$project/nmapscans -type f -name '*.xml' -printf "%p ")
-    xmlcom=$(xmlmerge $allxml > Results/$project/mergefinal.xml)
+    xmlcom=$(xmlmerge $allxml > Results/$project/nmapscans/mergefinal.xml)
     eval $xmlcom
 
-    python3 MISC/xml2csv.py -f Results/$project/mergefinal.xml -csv Results/$project/nmap.csv
+    python3 MISC/xml2csv.py -f Results/$project/nmapscans/mergefinal.xml -csv Results/$project/nmap.csv
+    xsltproc -o Results/$project/nmap.html MISC/nmap-bootstrap.xsl Results/$project/nmapscans/mergefinal.xml 
 }
 
 portscanner(){
@@ -204,10 +217,12 @@ functionhttpx(){
     if [ -f "$naabuout" ]; then
         webports=$(cat $naabuout | cut -d ',' -f 3 | grep -v port | sort -u |xargs | sed -e 's/ /,/g')
         if [ -f "$1" ]; then
-            cat $1 | httpx -p $webports -fr -sc -content-type -location -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout
+            cat $1 | httpx -p $webports -fr -sc -content-type -location -timeout 60 -retries 3 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout
+            csvcut $httpxout -c url | grep -v url | anew Results/$project/urlprobed.txt
         elif ! [ -f "$1" ]; then
-            cat $naabuout | cut -d ',' -f 2 | grep -v 'ip' | sort -u > Results/$project/aliveip.txt
-            cat Results/$project/aliveip.txt | httpx -p $webports -fr -sc -content-type -location -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout
+            cat $naabuout | cut -d ',' -f 2 | grep -v 'ip' | sort -u | anew Results/$project/aliveip.txt
+            cat Results/$project/aliveip.txt | httpx -p $webports -fr -sc -content-type -location -timeout 60 -retries 3 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout
+            csvcut $httpxout -c url | grep -v url | anew Results/$project/urlprobed.txt
         fi
     else
         echo $naabuout
@@ -216,8 +231,11 @@ functionhttpx(){
 
 }
 
+function nucleiscanner(){
+    nuclei -l Results/$project/urlprobed.txt -o Results/$project/nucleiresults.txt
+}
 
-
+banner
 var_checker
 
 
