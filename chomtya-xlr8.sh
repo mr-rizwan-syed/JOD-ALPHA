@@ -1,8 +1,8 @@
 #!/bin/bash
-#title: CHOMTYA
+#title: CHOMTYA-XLR8
 #description:   Automated and Modular Shell Script to Automate Security Vulnerability Scans
 #author:        R12W4N
-#version:       1.0
+#version:       3.5
 #==============================================================================
 red=`tput setaf 1`
 green=`tput setaf 2`
@@ -75,7 +75,7 @@ domaindirectorycheck(){
         echo -e "[${RED}I${RESET}] Results/$project Directory already exists...\n${RESET}"
     else
         mkdir -p Results/$project
-        echo -e "[${GREEN}I${RESET}] Results/$project Directory Created\n${RESET}"
+        echo -e "[${GREEN}I${RESET}] Results/$project Directory Created\n${RESET}" 
     fi
     
 }
@@ -104,8 +104,10 @@ function var_checker(){
         fi
         
         if [[ ${domainscan} == true ]];then
-                echo Domain Module $domain $domainscan
-                domainjod
+            echo Domain Module $domain $domainscan
+            mkdir -p Results/$project/$domain
+            cp results.log Results/$project/$domain
+            getsubdomains  
         elif [[ -z ${domain} ]]; then
             ColorBlue '[-] INFO: Domain not specified... Check -d again\n\n'$domain  >&2
         fi
@@ -116,19 +118,32 @@ function var_checker(){
     ########################################################
 }
 
+function counter(){
+    sdc=Results/$project/$domain/subdomains.txt
+    psd=Results/$project/$domain/potential-sd.txt
+    apache=Results/$project/$domain/apache-sd.txt
+    apachetomcat=Results/$project/$domain/apache-tomcat-sd.txt
+    wp=Results/$project/$domain/wordpress-sd.txt
+    drupal=Results/$project/$domain/drupal-sd.txt
+    joomla=Results/$project/$domain/joomla-sd.txt
+    jira=Results/$project/$domain/jira-urls.txt
+    gitl=Results/$project/$domain/gitlab-urls.txt
+    jboss=Results/$project/$domain/jboss-urls.txt
+    bigip=Results/$project/$domain/bigip-urls.txt
+}
+
 function checker(){
     
     is_subdomain_checker(){
-        test -f "Results/$domain/subdomains.txt"
-        test -f "Results/$domain/$domain-probed.csv"
+        test -f "Results/$project/$domain/subdomains.txt"
     }
     
     is_dnsbrute_checker(){
-        test -f "Results/$project/dnsreconoutput.csv"
+        test -f "Results/$project/$domain/dnsreconoutput.csv"
     }
     
     is_dirsearch_checker(){
-        test -f "Results/$project/Subdomains/$URL/dirsearch.csv"
+        test -f "Results/$project/$domain/$URL/dirsearch.csv"
     }
     
     is_all_sd_checker(){
@@ -137,33 +152,63 @@ function checker(){
     }
 }
 
-function subdomain_brute(){
+function dnsreconbrute(){
 
-    echo "${BLUE}[+]${RESET}Initiating DNSRecon Bruteforcing"
-    dnsrecon -d $domain -D $(pwd)/MISC/subdomains-top1million-5000.txt -t brt -c $(pwd)/Results/$project/dnsreconoutput.csv
-    csvcut -c Name Results/$project/dnsreconoutput.csv | grep $domain | grep -v Name | anew Results/$project/$domain-subdomains.txt > Results/$project/dnsreconurl.txt
+        function updatesd(){
+            echo "Subdomain File >>>> $sdc"
+            [ -f $sdc ] && echo -e "${GREEN}[*]${RESET}Total Passive Subdomains Collected by Subfinder${YELLOW} [$(cat $sdc | wc -l)]${RESET} "
+            echo "Updating DNSRecon Output to Subdomains.txt"
+            csvcut -c Name Results/$project/$domain/dnsreconoutput.csv | grep -v Name | anew Results/$project/$domain/subdomains.txt
+            [ -f $sdc ] && echo -e "${GREEN}[*]${RESET}Total Subdomains Collected by DNS Bruteforcing${YELLOW} [$(cat $sdc | wc -l)]${RESET}"
+        } 
+
+        function subdomain_brute(){
+
+            [ -f $sdc ] && echo -e "${GREEN}[*]${RESET}Total Passive Subdomains Collected${YELLOW} [$(cat $sdc | wc -l)]${RESET} "
+                
+            echo "${BLUE}[+]${RESET}Initiating DNSRecon Bruteforcing"
+            dnsrecon -d $domain -D $(pwd)/MISC/subdomains-top1million-5000.txt -t brt -c $(pwd)/Results/$project/$domain/dnsreconoutput.csv
+            csvcut -c Name Results/$project/$domain/dnsreconoutput.csv | grep $domain | grep -v Name | anew Results/$project/$domain/subdomains.txt > Results/$project/$domain/dnsreconurl.txt
            
-    find Results/$project -type f -empty -print -delete
+            find Results/$project/$domain -type f -empty -print -delete
+            
+            dnsreconsd=$(cat Results/$project/$domain/dnsreconurl.txt | wc -l)
+            sed -i -e "/dnsreconsd=/ s/=.*/=$dnsreconsd/" Results/$project/$domain/results.log
+            dnsbrtc=$(cat Results/$project/$domain/results.log | grep dnsreconsd | cut -d = -f 2)
 
-    ###############################       
-    #dnsreconsd=$(cat Results/$project/dnsreconurl.txt | wc -l)
-    #sed -i -e "/dnsreconsd=/ s/=.*/=$dnsreconsd/" Results/$project/results.log
-    #dnsbrtc=$(cat Results/$project/results.log | grep dnsreconsd | cut -d = -f 2)
-    #[ -f $sdc ] && echo -e "${GREEN}[*]${RESET}Total Subdomains Collected by DNSRecon${YELLOW} $dnsbrtc ${RESET}"
-    ###############################
+            [ -f $sdc ] && echo -e "${GREEN}[*]${RESET}Total Subdomains Collected by DNS Bruteforcing${YELLOW} $dnsbrtc ${RESET}"
 
+            #dnsx -silent -w MISC/subdomains-top1million-5000.txt -d $domain | anew Results/$domain/dnsxout.txt
+            #cat Results/$domain/dnsxout.txt | anew Results/$domain/subdomains.txt
+        }
+
+        if [[ $dnsbrute == "true" ]]; then
+            if is_dnsbrute_checker; then
+                echo "DNSBrute File Already Exist: Results/$project/$domain/dnsreconoutput.csv"
+                updatesd && return  
+            else
+                echo "DNS Recon Subdomain Bruteforcing Scan Initiated"
+                subdomain_brute
+            fi
+        fi
+}
+function domainjod(){
+    if ! is_subdomain_checker; then
+        subfinder -d $domain | anew Results/$project/$domain/subdomains.txt
+        subfindersd=$(cat $sdc | wc -l)
+        sed -i -e "/subfindersd=/ s/=.*/=$subfindersd/" Results/$project/$domain/results.log
+    fi
+   
 }
 
-function domainjod(){
-    subfinder -d $domain | anew Results/$project/$domain-subdomains.txt
-    if [[ $dnsreconbrute == true ]]; then
-        if is_dnsbrute_checker; then
-            echo "DNSBrute File Already Exist: Results/$project/dnsreconoutput.csv"
-            return
-        else
-            echo "DNS Recon Subdomain Bruteforcing Scan Initiated"
-            subdomain_brute
-        fi
+function getsubdomains(){
+    if is_subdomain_checker; then
+        echo "Results/$project/$domain/subdomains.txt File Already Exist" || return
+        counter
+        # Todo: ReRun if requested in argument if rerun=yes then run again
+    else
+        counter
+        domainjod
     fi
 }
 function nmapconverter(){
@@ -206,7 +251,7 @@ function portscanner(){
                 naabu -list $1 -o $naabuout -csv
                 cat $naabuout | cut -d ',' -f 2 | grep -v ip | sort -u > Results/$project/aliveip.txt
                 
-                if [ $nmap == true ];then
+                if [[ $nmap == "true" ]];then
                     mkdir -p $nmapscans
                     while read iphost; do
                         scanner
@@ -216,7 +261,7 @@ function portscanner(){
             else
                 naabu -host $1 -o $naabuout -csv
                 cat $naabuout | cut -d ',' -f 2 | grep -v ip | sort -u > Results/$project/aliveip.txt
-                    if [ $nmap == true ];then
+                    if [[ $nmap == "true" ]];then
                         mkdir -p $nmapscans
                         while read iphost; do
                             scanner
@@ -267,6 +312,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     -p|--project)
       project="$2"
+      domaindirectorycheck
       checker
       shift 
       ;;
@@ -285,7 +331,8 @@ while [[ $# -gt 0 ]]; do
       shift 
       ;;
     -dns|--dnsbrute)
-      dnsreconbrute=true
+      dnsbrute=true
+      dnsreconbrute
       shift 
       ;;
     -*|--*)
