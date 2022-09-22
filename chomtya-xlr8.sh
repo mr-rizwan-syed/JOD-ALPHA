@@ -56,14 +56,15 @@ print_usage() {
   echo "~~~~~~~~~~~"
   echo " U S A G E"
   echo "~~~~~~~~~~~"
-  echo "Usage: ./chomtya-xlr8.sh [option]"
-  echo "  options:"
-  echo "    -p  | project    : Specify Project Name here"
-  echo "    -d  | domain     : Specify Root Domain here"
-  echo "    -i  | ip         : Specify IP / CIDR/ IPlist here"
-  echo "    -n  | nmap       : Nmap Scan against open ports"
-  echo "    -dns | dnsbrute  : DNS Recon Bruteforce" 
-  echo "    -h | help        : Show this help"
+  echo "Usage: ./chomtya-xlr8.sh -p <ProjectName> -d <domain.com> -i <127.0.0.1> [option]"
+  echo "  Mandatory Flags:"
+  echo "    -p  | --project    : Specify Project Name here"
+  echo "    -d  | --domain     : Specify Root Domain here"
+  echo "    -i  | --ip         : Specify IP / CIDR/ IPlist here"
+  echo " Optional Flags "
+  echo "    -n  | --nmap       : Nmap Scan against open ports"
+  echo "    -dns | --dnsbrute  : DNS Recon Bruteforce" 
+  echo "    -h | --help        : Show this help"
   echo ""
   exit
 }
@@ -107,7 +108,8 @@ function var_checker(){
             echo Domain Module $domain $domainscan
             mkdir -p Results/$project/$domain
             cp results.log Results/$project/$domain
-            getsubdomains  
+            getsubdomains
+            portscanner $sdc
         elif [[ -z ${domain} ]]; then
             ColorBlue '[-] INFO: Domain not specified... Check -d again\n\n'$domain  >&2
         fi
@@ -158,22 +160,23 @@ function dnsreconbrute(){
             echo "Subdomain File >>>> $sdc"
             [ -f $sdc ] && echo -e "${GREEN}[*]${RESET}Total Passive Subdomains Collected by Subfinder${YELLOW} [$(cat $sdc | wc -l)]${RESET} "
             echo "Updating DNSRecon Output to Subdomains.txt"
-            csvcut -c Name Results/$project/$domain/dnsreconoutput.csv | grep -v Name | anew Results/$project/$domain/subdomains.txt
+            csvcut -c Name Results/$project/$domain/dnsreconoutput.csv | grep -v Name | anew Results/$project/$domain/subdomains.txt > Results/$project/$domain/dnsreconurl.txt
             [ -f $sdc ] && echo -e "${GREEN}[*]${RESET}Total Subdomains Collected by DNS Bruteforcing${YELLOW} [$(cat $sdc | wc -l)]${RESET}"
         } 
 
         function subdomain_brute(){
 
             [ -f $sdc ] && echo -e "${GREEN}[*]${RESET}Total Passive Subdomains Collected${YELLOW} [$(cat $sdc | wc -l)]${RESET} "
-                
+            
             echo "${BLUE}[+]${RESET}Initiating DNSRecon Bruteforcing"
             dnsrecon -d $domain -D $(pwd)/MISC/subdomains-top1million-5000.txt -t brt -c $(pwd)/Results/$project/$domain/dnsreconoutput.csv
-            csvcut -c Name Results/$project/$domain/dnsreconoutput.csv | grep $domain | grep -v Name | anew Results/$project/$domain/subdomains.txt > Results/$project/$domain/dnsreconurl.txt
-           
+            csvcut -c Name Results/$project/$domain/dnsreconoutput.csv | grep $domain | grep -v Name | anew Results/$project/$domain/dnsreconurl.txt
+            cat Results/$project/$domain/dnsreconurl.txt |anew Results/$project/$domain/subdomains.txt        
             find Results/$project/$domain -type f -empty -print -delete
             
             dnsreconsd=$(cat Results/$project/$domain/dnsreconurl.txt | wc -l)
             sed -i -e "/dnsreconsd=/ s/=.*/=$dnsreconsd/" Results/$project/$domain/results.log
+
             dnsbrtc=$(cat Results/$project/$domain/results.log | grep dnsreconsd | cut -d = -f 2)
 
             [ -f $sdc ] && echo -e "${GREEN}[*]${RESET}Total Subdomains Collected by DNS Bruteforcing${YELLOW} $dnsbrtc ${RESET}"
@@ -183,12 +186,19 @@ function dnsreconbrute(){
         }
 
         if [[ $dnsbrute == "true" ]]; then
-            if is_dnsbrute_checker; then
-                echo "DNSBrute File Already Exist: Results/$project/$domain/dnsreconoutput.csv"
-                updatesd && return  
-            else
-                echo "DNS Recon Subdomain Bruteforcing Scan Initiated"
-                subdomain_brute
+            if is_subdomain_checker; then
+                if is_dnsbrute_checker; then
+                    echo "DNSBrute File Already Exist: Results/$project/$domain/dnsreconoutput.csv"
+                    subfindersd=$(cat $sdc | wc -l)
+                    dnsreconsd=$(cat Results/$project/$domain/dnsreconurl.txt | wc -l)
+                    sed -i -e "/dnsreconsd=/ s/=.*/=$dnsreconsd/" Results/$project/$domain/results.log
+                    totalsd=$(( $dnsreconsd + $subfindersd ))
+                    sed -i -e "/totalsd=/ s/=.*/=$totalsd/" Results/$project/$domain/results.log
+                    updatesd && return
+                else
+                    echo "DNS Recon Subdomain Bruteforcing Scan Initiated"  
+                    subdomain_brute
+                fi
             fi
         fi
 }
@@ -197,20 +207,22 @@ function domainjod(){
         subfinder -d $domain | anew Results/$project/$domain/subdomains.txt
         subfindersd=$(cat $sdc | wc -l)
         sed -i -e "/subfindersd=/ s/=.*/=$subfindersd/" Results/$project/$domain/results.log
+        sed -i -e "/totalsd=/ s/=.*/=$subfindersd/" Results/$project/$domain/results.log
     fi
-   
 }
 
 function getsubdomains(){
     if is_subdomain_checker; then
-        echo "Results/$project/$domain/subdomains.txt File Already Exist" || return
         counter
+        echo "Results/$project/$domain/subdomains.txt File Already Exist" || return
         # Todo: ReRun if requested in argument if rerun=yes then run again
     else
         counter
         domainjod
+        dnsreconbrute
     fi
 }
+
 function nmapconverter(){
     allxml=$(find Results/$project/nmapscans -type f -name '*.xml' -printf "%p ")
     xmlcom=$(xmlmerge $allxml > Results/$project/nmapscans/mergefinal.xml)
@@ -276,7 +288,6 @@ function portscanner(){
 
 }
 
-
 function iphttpx(){
     httpxout="Results/$project/httpxout.csv"
     webtech="Results/$project/webanalyze.csv"
@@ -312,8 +323,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     -p|--project)
       project="$2"
+      banner
       domaindirectorycheck
       checker
+      counter
       shift 
       ;;
     -d|--domain)
