@@ -27,7 +27,6 @@ ColorBlue () {
         echo -ne $blue$1$reset
 }
 
-
 banner(){
 echo ${green} '
 
@@ -134,6 +133,25 @@ function counter(){
     gitl=Results/$project/$domain/gitlab-urls.txt
     jboss=Results/$project/$domain/jboss-urls.txt
     bigip=Results/$project/$domain/bigip-urls.txt
+
+    if [[ ${ipscan} == true ]];then
+        naabuout="Results/$project/naabu.csv"
+        nmapscans="Results/$project/nmapscans"
+        aliveip="Results/$project/aliveip.txt"
+        httpxout="Results/$project/httpxout.csv"
+        webtech="Results/$project/webanalyze.csv"
+        urlprobed="Results/$project/urlprobed.txt"
+
+    fi
+      
+    if [[ ${domainscan} == true ]];then
+        naabuout="Results/$project/$domain/naabu.csv"
+        nmapscans="Results/$project/$domain/nmapscans"
+        aliveip="Results/$project/$domain/aliveip.txt"
+        httpxout="Results/$project/$domain/httpxout.csv"
+        webtech="Results/$project/$domain/webanalyze.csv"
+        urlprobed="Results/$project/$domain/urlprobed.txt"
+    fi
 }
 
 function checker(){
@@ -166,13 +184,12 @@ function dnsreconbrute(){
             
             csvcut -c Name Results/$project/$domain/dnsreconoutput.csv | grep $domain | grep -v Name | anew Results/$project/$domain/dnsreconurl.txt
             cat Results/$project/$domain/dnsreconurl.txt |anew Results/$project/$domain/subdomains.txt   
-
             
             dnsreconsd=$(cat Results/$project/$domain/dnsreconurl.txt | wc -l)
             [ -f $sdc ] && echo -e "${GREEN}[*]${RESET}Total Subdomains Collected by DNS Bruteforcing${YELLOW} [$dnsreconsd]${RESET}"
             
             sed -i -e "/dnsreconsd=/ s/=.*/=$dnsreconsd/" Results/$project/$domain/results.log
-            #totalsd=$(( $dnsreconsd + $subfindersd ))
+            #totalsd=$(( $dnsreconsd + $subfindersd ))  
             #echo "Total Subdomains after adding is $totalsd"
             totalsd=$(cat $sdc | wc -l)
             sed -i -e "/totalsd=/ s/=.*/=$totalsd/" Results/$project/$domain/results.log
@@ -190,12 +207,12 @@ function dnsreconbrute(){
             
             dnsreconsd=$(cat Results/$project/$domain/dnsreconurl.txt | wc -l)
             sed -i -e "/dnsreconsd=/ s/=.*/=$dnsreconsd/" Results/$project/$domain/results.log
-
+    
             dnsbrtc=$(cat Results/$project/$domain/results.log | grep dnsreconsd | cut -d = -f 2)
 
             [ -f $sdc ] && echo -e "${GREEN}[*]${RESET}Total Subdomains Collected by DNS Bruteforcing${YELLOW} $dnsbrtc ${RESET}"
 
-            totalsd=$(cat $sdc | wc -l)
+            totalsd=$(cat Results/$project/$domain/subdomains.txt  | wc -l)
             sed -i -e "/totalsd=/ s/=.*/=$totalsd/" Results/$project/$domain/results.log
 
             #dnsx -silent -w MISC/subdomains-top1million-5000.txt -d $domain | anew Results/$domain/dnsxout.txt
@@ -210,6 +227,7 @@ function dnsreconbrute(){
                 else
                     echo "DNS Recon Subdomain Bruteforcing Scan Initiated"  
                     subdomain_brute
+                    updatesd && return
                 fi
             fi
         fi
@@ -244,18 +262,6 @@ function nmapconverter(){
 }
 
 function portscanner(){
-    if [[ ${ipscan} == true ]];then
-        naabuout="Results/$project/naabu.csv"
-        nmapscans="Results/$project/nmapscans"
-        aliveip="Results/$project/aliveip.txt"
-
-    fi
-      
-    if [[ ${domainscan} == true ]];then
-        naabuout="Results/$project/$domain/naabu.csv"
-        nmapscans="Results/$project/$domain/nmapscans"
-        aliveip="Results/$project/$domain/aliveip.txt"
-    fi
 
     scanner(){
         ports=$(cat $naabuout| grep $iphost | cut -d ',' -f 3 |xargs | sed -e 's/ /,/g')
@@ -308,23 +314,22 @@ function portscanner(){
 }
 
 function iphttpx(){
-    httpxout="Results/$project/httpxout.csv"
-    webtech="Results/$project/webanalyze.csv"
+
     webtechcheck(){
         webanalyze -update
-        webanalyze -hosts Results/$project/urlprobed.txt -silent -crawl 2 -redirect -output csv 2>/dev/null | tee $webtech
+        webanalyze -hosts $urlprobed -silent -crawl 2 -redirect -output csv 2>/dev/null | tee $webtech
 
     }
     if [ -f "$naabuout" ]; then
         webports=$(cat $naabuout | cut -d ',' -f 3 | grep -v port | sort -u |xargs | sed -e 's/ /,/g')
         if [ -f "$1" ]; then
             cat $1 | httpx -p $webports -fr -sc -content-type -location -timeout 60 -retries 3 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout
-            csvcut $httpxout -c url | grep -v url | anew Results/$project/urlprobed.txt
+            csvcut $httpxout -c url | grep -v url | anew $urlprobed
             webtechcheck
         elif ! [ -f "$1" ]; then
             cat $naabuout | cut -d ',' -f 2 | grep -v 'ip' | sort -u | anew $aliveip
             cat $aliveip | httpx -p $webports -fr -sc -content-type -location -timeout 60 -retries 3 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout
-            csvcut $httpxout -c url | grep -v url | anew Results/$project/urlprobed.txt
+            csvcut $httpxout -c url | grep -v url | anew $urlprobed
             webtechcheck
         fi
     else
