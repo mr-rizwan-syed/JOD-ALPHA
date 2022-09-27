@@ -98,6 +98,7 @@ function var_checker(){
     if [[ ${ipscan} == true ]] || [[ ${domainscan} == true ]];then
         
         if [[ ${ipscan} == true ]];then
+            counter
             echo IP Module $ip $ipscan
             portscanner $ip
             iphttpx $ip
@@ -106,11 +107,14 @@ function var_checker(){
         fi
         
         if [[ ${domainscan} == true ]];then
+            counter
             echo Domain Module $domain $domainscan
             mkdir -p Results/$project/$domain
             cp results.log Results/$project/$domain
             getsubdomains
-            if [[ ${portscan} == "true" ]];then portscanner $sdc; fi
+            portscanner $sdc
+            iphttpx $sdc
+            #if [[ ${portscan} == "true" ]];then portscanner $sdc; fi
         elif [[ -z ${domain} ]]; then
             ColorBlue '[-] INFO: Domain not specified... Check -d again\n\n'$domain  >&2
         fi
@@ -124,15 +128,6 @@ function var_checker(){
 function counter(){
     sdc=Results/$project/$domain/subdomains.txt
     psd=Results/$project/$domain/potential-sd.txt
-    apache=Results/$project/$domain/apache-sd.txt
-    apachetomcat=Results/$project/$domain/apache-tomcat-sd.txt
-    wp=Results/$project/$domain/wordpress-sd.txt
-    drupal=Results/$project/$domain/drupal-sd.txt
-    joomla=Results/$project/$domain/joomla-sd.txt
-    jira=Results/$project/$domain/jira-urls.txt
-    gitl=Results/$project/$domain/gitlab-urls.txt
-    jboss=Results/$project/$domain/jboss-urls.txt
-    bigip=Results/$project/$domain/bigip-urls.txt
 
     if [[ ${ipscan} == true ]];then
         naabuout="Results/$project/naabu.csv"
@@ -141,6 +136,16 @@ function counter(){
         httpxout="Results/$project/httpxout.csv"
         webtech="Results/$project/webanalyze.csv"
         urlprobed="Results/$project/urlprobed.txt"
+        apache="Results/$project/apache-sd.txt"
+        apachetomcat="Results/$project/apache-tomcat-sd.txt"
+        nginx="Results/$project/nginx-sd.txt"
+        wp="Results/$project/wordpress-sd.txt"
+        drupal="Results/$project/drupal-sd.txt"
+        joomla="Results/$project/joomla-sd.txt"
+        jira="Results/$project/jira-urls.txt"
+        gitl="Results/$project/gitlab-urls.txt"
+        jboss="Results/$project/jboss-urls.txt"
+        bigip="Results/$project/bigip-urls.txt"
 
     fi
       
@@ -151,6 +156,18 @@ function counter(){
         httpxout="Results/$project/$domain/httpxout.csv"
         webtech="Results/$project/$domain/webanalyze.csv"
         urlprobed="Results/$project/$domain/urlprobed.txt"
+        apache="Results/$project/$domain/apache-sd.txt"
+        apachetomcat="Results/$project/$domain/apache-tomcat-sd.txt"
+        nginx="Results/$project/$domain/nginx-sd.txt"
+        wp="Results/$project/$domain/wordpress-sd.txt"
+        drupal="Results/$project/$domain/drupal-sd.txt"
+        joomla="Results/$project/$domain/joomla-sd.txt"
+        jira="Results/$project/$domain/jira-urls.txt"
+        gitl="Results/$project/$domain/gitlab-urls.txt"
+        jboss="Results/$project/$domain/jboss-urls.txt"
+        bigip="Results/$project/$domain/bigip-urls.txt"
+        iis="Results/$project/$domain/iis-urls.txt"
+
     fi
 }
 
@@ -318,10 +335,78 @@ function iphttpx(){
         webanalyze -hosts $urlprobed -silent -crawl 2 -redirect -output csv 2>/dev/null | tee $webtech
 
     }
+    techgorize(){
+        # Apache Subdomains
+        csvcut -c url,technologies $httpxout | grep -E 'Apache' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,technologies $httpxout | grep -E 'Apache' | cut -d ',' -f 1 | anew $apache
+        cat $webtech | grep -E 'Apache' | cut -d , -f 1 | anew $apache
+
+        csvcut -c url,technologies $httpxout | grep -E 'Tomcat' | cut -d ',' -f 1,2 --output-delimiter=" ${MAGENTA}>>>${RESET} "
+        csvcut -c url,technologies $httpxout | grep -E 'Tomcat' | cut -d ',' -f 1 | anew $apachetomcat
+        cat $webtech | grep -E 'Tomcat' | cut -d , -f 1 | anew $apachetomcat
+
+        # Nginx Subdomains
+        csvcut -c url,technologies $httpxout | grep -E 'Nginx' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,technologies $httpxout | grep -E 'Nginx' | cut -d ',' -f 1 | anew $nginx
+
+        # IIS Subdomains
+        csvcut -c url,technologies $httpxout | grep -E 'IIS' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,technologies $httpxout | grep -E 'IIS' | cut -d ',' -f 1 | anew $iis
+        cat $webtech | grep -E 'IIS' | cut -d , -f 1 | anew $iis
+
+
+        # Wordpress Subdomains
+        csvcut -c url,technologies $httpxout | grep -E 'Wordpress|WordPress' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,technologies $httpxout | grep -E 'Wordpress|WordPress' | cut -d ',' -f 1 | anew $wp
+        cat $webtech | grep -E 'WordPress|Wordpress' | cut -d , -f 1 | anew $wp
+        
+        # Joomla Subdomains
+        csvcut -c url,technologies $httpxout | grep -E 'Joomla' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,technologies $httpxout | grep -E 'Joomla' | cut -d ',' -f 1 | anew $joomla
+        cat $webtech | grep -E 'Joomla' | cut -d , -f 1 | anew $joomla
+
+        # Drupal Subdomains
+        csvcut -c url,technologies $httpxout | grep -E 'Drupal' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,technologies $httpxout | grep -E 'Drupal' | cut -d ',' -f 1 | anew $drupal
+
+        # Jira Subdomains
+        csvcut -c url,technologies $httpxout | grep -E 'Jira' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,technologies $httpxout | grep -E 'Jira' | cut -d ',' -f 1 | anew $jira
+
+        # Gitlab Subdomains
+        csvcut -c url,technologies $httpxout | grep -E 'GitLab' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,technologies $httpxout | grep -E 'GitLab' | cut -d ',' -f 1 | anew $gitl
+
+        # JBoss Subdomains
+        csvcut -c url,technologies $httpxout | grep -E 'JBoss' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,technologies $httpxout | grep -E 'JBoss' | cut -d ',' -f 1 | anew $jboss
+
+        # BigIP Subdomains
+        csvcut -c url,technologies $httpxout | grep -E 'BigIP' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,technologies $httpxout | grep -E 'BigIP' | cut -d ',' -f 1 | anew $bigip
+
+        # Delete Empty Files in domain Folder
+        find Results/$domain -type f -empty -print -delete
+
+        [ -f $sdc ] && echo -e "${GREEN}[+]${RESET}Total Subdomains [$(cat $sdc | wc -l)]"
+        [ -f $psd ] && echo -e "${GREEN}[+]${RESET}Potential Subdomains [$(cat $psd | wc -l)]"
+        [ -f $apache ] && echo -e "${GREEN}[+]${RESET}Apache Subdomains [$(cat $apache | wc -l)]"
+        [ -f $apachetomcat ] && echo -e "${GREEN}[+]${RESET}Apache Tomcat Subdomains [$(cat $apachetomcat | wc -l)]"
+        [ -f $nginx ] && echo -e "${GREEN}[+]${RESET}Nginx Subdomains [$(cat $nginx | wc -l)]"
+        [ -f $iis ] && echo -e "${GREEN}[+]${RESET}Nginx Subdomains [$(cat $iis | wc -l)]"
+        [ -f $wp ] && echo -e "${GREEN}[+]${RESET}WordPress Subdomains [$(cat $wp | wc -l)]"
+        [ -f $drupal ] && echo -e "${GREEN}[+]${RESET}Drupal Subdomains [$(cat $drupal | wc -l)]"
+        [ -f $joomla ] && echo -e "${GREEN}[+]${RESET}Joomla Subdomains [$(cat $joomla | wc -l)]"
+        [ -f $jira ] && echo -e "${GREEN}[+]${RESET}Jira Subdomains [$(cat $jira | wc -l)]"
+        [ -f $gitl ] && echo -e "${GREEN}[+]${RESET}GitLab Subdomains [$(cat $gitl | wc -l)]" 
+        [ -f $jboss ] && echo -e "${GREEN}[+]${RESET}JBoss Subdomains [$(cat $jboss | wc -l)]" 
+        [ -f $bigip ] && echo -e "${GREEN}[+]${RESET}BigIP Subdomains [$(cat $bigip | wc -l)]"
+    }
+
     if [ -f "$naabuout" ]; then
         webports=$(cat $naabuout | cut -d ',' -f 3 | grep -v port | sort -u |xargs | sed -e 's/ /,/g')
         if [ -f "$1" ]; then
-            cat $1 | httpx -p $webports -fr -sc -content-type -location -timeout 60 -retries 3 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout
+            cat $1 | httpx -p $webports -fr -sc -content-type -location -timeout 60 -retries 2 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout
             csvcut $httpxout -c url | grep -v url | anew $urlprobed
             webtechcheck
         elif ! [ -f "$1" ]; then
@@ -329,6 +414,7 @@ function iphttpx(){
             cat $aliveip | httpx -p $webports -fr -sc -content-type -location -timeout 60 -retries 3 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout
             csvcut $httpxout -c url | grep -v url | anew $urlprobed
             webtechcheck
+            techgorize
         fi
     else
         echo $naabuout
@@ -391,4 +477,3 @@ if [[ ! -n $1 ]]; then
 fi
 
 var_checker
-counter
