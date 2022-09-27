@@ -5,6 +5,7 @@
 apt install python3 -y
 apt install python3-pip -y
 apt install git -y
+apt install nmap
 go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
 go install github.com/lc/gau/v2/cmd/gau@latest
 go install github.com/tomnomnom/waybackurls@latest
@@ -18,14 +19,22 @@ go install github.com/hahwul/dalfox/v2@latest
 go install github.com/haccer/subjack@latest
 go install github.com/tomnomnom/unfurl@latest
 go install github.com/rverton/webanalyze/cmd/webanalyze@latest
+go install -v github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest
+
+# Naabu is not getting installed by below command, download the compiled binary from official naabu github release page. 
+go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest
+
 
 apt install dnsrecon -y
 apt install dirsearch -y
+apt install nmap -y
+apt install xsltproc -y
+apt install csvkit -y
+pip install xmlmerge
 
-go install -v github.com/projectdiscovery/nuclei/v2/cmd/nuclei@latest
+
 nuclei -update
 nuclei -ut 
-
 
 git clone https://github.com/1ndianl33t/Gf-Patterns ~/.gf
 
