@@ -242,11 +242,9 @@ function domainjod(){
 
 function getsubdomains(){
     if is_subdomain_checker; then
-        counter
         echo "Results/$project/$domain/subdomains.txt File Already Exist" || return
         # Todo: ReRun if requested in argument if rerun=yes then run again
     else
-        counter
         domainjod
         dnsreconbrute
     fi
@@ -350,7 +348,6 @@ while [[ $# -gt 0 ]]; do
       banner
       domaindirectorycheck
       checker
-      counter
       shift 
       ;;
     -d|--domain)
@@ -394,3 +391,4 @@ if [[ ! -n $1 ]]; then
 fi
 
 var_checker
+counter
