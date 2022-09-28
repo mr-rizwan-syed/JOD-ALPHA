@@ -63,8 +63,7 @@ print_usage() {
   echo "    -i  | --ip              : Specify IP / CIDR/ IPlist here"
   echo " Optional Flags "
   echo "    -n  | --nmap            : Nmap Scan against open ports"
-  echo "    -brt | --dnsbrute       : DNS Recon Bruteforce" 
-  echo "    -naabu  | --portscan    : Quick Port Scan against open ports - Only for Domain Scan"
+  echo "    -brt | --dnsbrute       : DNS Recon Bruteforce"
   echo "    -h | --help             : Show this help"
   echo ""
   exit
@@ -291,7 +290,7 @@ function portscanner(){
 
         if [ -f "$naabuout" ]; then
             cat $naabuout | cut -d ',' -f 2 | grep -v ip | anew $aliveip
-            if [ $nmap == true ];then
+            if [[ $nmap == "true" ]];then
                 mkdir -p $nmapscans
                 while read iphost; do
                     scanner  
@@ -386,7 +385,7 @@ function iphttpx(){
         csvcut -c url,technologies $httpxout | grep -E 'BigIP' | cut -d ',' -f 1 | anew $bigip
 
         # Delete Empty Files in domain Folder
-        find Results/$domain -type f -empty -print -delete
+        find Results/$project/$domain -type f -empty -print -delete
 
         [ -f $sdc ] && echo -e "${GREEN}[+]${RESET}Total Subdomains [$(cat $sdc | wc -l)]"
         [ -f $psd ] && echo -e "${GREEN}[+]${RESET}Potential Subdomains [$(cat $psd | wc -l)]"
@@ -406,9 +405,11 @@ function iphttpx(){
     if [ -f "$naabuout" ]; then
         webports=$(cat $naabuout | cut -d ',' -f 3 | grep -v port | sort -u |xargs | sed -e 's/ /,/g')
         if [ -f "$1" ]; then
+            echo "cat $1 | httpx -p $webports -fr -sc -content-type -location -timeout 60 -retries 2 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout"
             cat $1 | httpx -p $webports -fr -sc -content-type -location -timeout 60 -retries 2 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout
             csvcut $httpxout -c url | grep -v url | anew $urlprobed
             webtechcheck
+            techgorize
         elif ! [ -f "$1" ]; then
             cat $naabuout | cut -d ',' -f 2 | grep -v 'ip' | sort -u | anew $aliveip
             cat $aliveip | httpx -p $webports -fr -sc -content-type -location -timeout 60 -retries 3 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout
