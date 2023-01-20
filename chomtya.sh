@@ -403,7 +403,8 @@ function iphttpx(){
     }
 
     if [ -f "$naabuout" ]; then
-        webports=$(cat $naabuout | cut -d ',' -f 3 | grep -v port | sort -u |xargs | sed -e 's/ /,/g')
+        excludedports='21|22|445|3389'
+        webports=$(cat $naabuout | cut -d ',' -f 3 | sort -u | grep -v port | grep -vE $excludedports |xargs | sed -e 's/ /,/g')
         if [ -f "$1" ]; then
             echo "cat $1 | httpx -p $webports -fr -sc -content-type -location -timeout 60 -retries 2 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout"
             cat $1 | httpx -p $webports -fr -sc -content-type -location -timeout 60 -retries 2 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout
