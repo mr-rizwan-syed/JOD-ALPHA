@@ -148,7 +148,7 @@ function counter(){
         httpxout="Results/$project/httpxout.csv"
         hostport="Results/$project/hostport.txt"
         ipport="Results/$project/ipport.txt"
-	    webtech="Results/$project/webanalyze.csv"
+	webtech="Results/$project/webanalyze.csv"
         urlprobed="Results/$project/urlprobed.txt"
         apache="Results/$project/apache-sd.txt"
         apachetomcat="Results/$project/apache-tomcat-sd.txt"
