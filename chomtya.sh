@@ -2,7 +2,7 @@
 #title: CHOMTYA-XLR8
 #description:   Automated and Modular Shell Script to Automate Security Vulnerability Scans
 #author:        R12W4N
-#version:       3.5
+#version:       3.5.6
 #==============================================================================
 red=`tput setaf 1`
 green=`tput setaf 2`
@@ -55,16 +55,22 @@ print_usage() {
   echo "~~~~~~~~~~~"
   echo " U S A G E"
   echo "~~~~~~~~~~~"
-  echo "Usage: ./chomtya-xlr8.sh -p <ProjectName> -d <domain.com> -i <127.0.0.1> -brt -portscan"
-  echo "Usage: ./chomtya-xlr8.sh -p <ProjectName> -i <127.0.0.1> [option]"
+  echo "Usage: ./chomtya.sh -p <ProjectName> -d <domain.com> -i <127.0.0.1> -brt -n"
+  echo "Usage: ./chomtya.sh -p <ProjectName> -i <127.0.0.1> [option]"
+  echo ""
   echo "  Mandatory Flags:"
   echo "    -p  | --project         : Specify Project Name here"
-  echo "    -d  | --domain          : Specify Root Domain here"
+  echo "    -d  | --domain          : Specify Root Domain here / Domain List here"
   echo "    -i  | --ip              : Specify IP / CIDR/ IPlist here"
   echo " Optional Flags "
   echo "    -n  | --nmap            : Nmap Scan against open ports"
   echo "    -brt | --dnsbrute       : DNS Recon Bruteforce"
   echo "    -h | --help             : Show this help"
+  echo ""
+  echo "Example: ./chomtya.sh -p projectname -d example.com -brt"
+  echo "Example: ./chomtya.sh -p projectname -d Domains-list.txt"
+  echo "Example: ./chomtya.sh -p projectname -i 127.0.0.1"
+  echo "Example: ./chomtya.sh -p projectname -i IPs-list.txt -n"
   echo ""
   exit
 }
@@ -100,7 +106,7 @@ function var_checker(){
             counter
             echo IP Module $ip $ipscan
             portscanner $ip
-            iphttpx $ip
+            iphttpx $ipport
         elif [[ -z ${ipscan} ]]; then
             ColorBlue '[I] INFO: IP not specified.. Check -i again\n\n'$ip  >&2
         fi
@@ -110,9 +116,16 @@ function var_checker(){
             echo Domain Module $domain $domainscan
             mkdir -p Results/$project/$domain
             cp results.log Results/$project/$domain
-            getsubdomains
-            portscanner $sdc
-            iphttpx $sdc
+            if [ -f "$domain" ]; then
+                portscanner $domain
+                iphttpx $hostport
+            else
+                getsubdomains
+                portscanner $sdc
+                iphttpx $hostport
+            fi
+            
+            
             #if [[ ${portscan} == "true" ]];then portscanner $sdc; fi
         elif [[ -z ${domain} ]]; then
             ColorBlue '[-] INFO: Domain not specified... Check -d again\n\n'$domain  >&2
@@ -133,7 +146,9 @@ function counter(){
         nmapscans="Results/$project/nmapscans"
         aliveip="Results/$project/aliveip.txt"
         httpxout="Results/$project/httpxout.csv"
-        webtech="Results/$project/webanalyze.csv"
+        hostport="Results/$project/hostport.txt"
+        ipport="Results/$project/ipport.txt"
+	    webtech="Results/$project/webanalyze.csv"
         urlprobed="Results/$project/urlprobed.txt"
         apache="Results/$project/apache-sd.txt"
         apachetomcat="Results/$project/apache-tomcat-sd.txt"
@@ -153,6 +168,8 @@ function counter(){
         nmapscans="Results/$project/$domain/nmapscans"
         aliveip="Results/$project/$domain/aliveip.txt"
         httpxout="Results/$project/$domain/httpxout.csv"
+        hostport="Results/$project/$domain/hostport.txt"
+        ipport="Results/$project/$domain/ipport.txt"
         webtech="Results/$project/$domain/webanalyze.csv"
         urlprobed="Results/$project/$domain/urlprobed.txt"
         apache="Results/$project/$domain/apache-sd.txt"
@@ -199,7 +216,7 @@ function dnsreconbrute(){
             echo "Updating DNSRecon Output to Subdomains.txt"
             
             csvcut -c Name Results/$project/$domain/dnsreconoutput.csv | grep $domain | grep -v Name | anew Results/$project/$domain/dnsreconurl.txt
-            cat Results/$project/$domain/dnsreconurl.txt |anew Results/$project/$domain/subdomains.txt   
+            cat Results/$project/$domain/dnsreconurl.txt 2>/dev/null |anew Results/$project/$domain/subdomains.txt   
             
             dnsreconsd=$(cat Results/$project/$domain/dnsreconurl.txt | wc -l)
             [ -f $sdc ] && echo -e "${GREEN}[*]${RESET}Total Subdomains Collected by DNS Bruteforcing${YELLOW} [$dnsreconsd]${RESET}"
@@ -218,7 +235,7 @@ function dnsreconbrute(){
             echo "${BLUE}[+]${RESET}Initiating DNSRecon Bruteforcing"
             dnsrecon -d $domain -D $(pwd)/MISC/subdomains-top1million-5000.txt -t brt -c $(pwd)/Results/$project/$domain/dnsreconoutput.csv
             csvcut -c Name Results/$project/$domain/dnsreconoutput.csv | grep $domain | grep -v Name | anew Results/$project/$domain/dnsreconurl.txt
-            cat Results/$project/$domain/dnsreconurl.txt |anew Results/$project/$domain/subdomains.txt        
+            cat Results/$project/$domain/dnsreconurl.txt |anew Results/$project/$domain/subdomains.txt
             find Results/$project/$domain -type f -empty -print -delete
             
             dnsreconsd=$(cat Results/$project/$domain/dnsreconurl.txt | wc -l)
@@ -241,7 +258,7 @@ function dnsreconbrute(){
                     echo "DNSBrute File Already Exist: Results/$project/$domain/dnsreconoutput.csv"
                     updatesd && return
                 else
-                    echo "DNS Recon Subdomain Bruteforcing Scan Initiated"  
+                    echo "DNS Recon Subdomain Bruteforcing Scan Initiated"
                     subdomain_brute
                     updatesd && return
                 fi
@@ -278,7 +295,7 @@ function nmapconverter(){
 function portscanner(){
 
     scanner(){
-        ports=$(cat $naabuout| grep $iphost | cut -d ',' -f 3 |xargs | sed -e 's/ /,/g')
+        ports=$(cat $ipport| grep $iphost | cut -d ':' -f 2 | xargs | sed -e 's/ /,/g')
             if [ -z "$ports" ]
             then
                 echo "No Ports found for $iphost"
@@ -287,7 +304,8 @@ function portscanner(){
                 nmap $iphost -p $ports -sV -sC -d -oX $nmapscans/nmapresult-$iphost.xml -oN $nmapscans/nmapresult-$iphost.nmap
             fi
         }    
-
+        
+        # This will check if naaabuout file is present than extract aliveip and if nmap=true then run nmap on each ip on respective open ports.
         if [ -f "$naabuout" ]; then
             cat $naabuout | cut -d ',' -f 2 | grep -v ip | anew $aliveip
             if [[ $nmap == "true" ]];then
@@ -297,12 +315,15 @@ function portscanner(){
                 done <"$aliveip"
                 nmapconverter
             fi
+        # else run naabu to initiate port scan
+        # start from here
         else
-            echo $ip   #start from here
+            echo $ip   
             if [ -f "$1" ]; then
-                naabu -list $1 -o $naabuout -csv
+                naabu -list $1 -top-ports 1000 -cdn -ec -o $naabuout -csv
                 cat $naabuout | cut -d ',' -f 2 | grep -v ip | anew $aliveip
-                
+                csvcut -c host,port $naabuout 2>/dev/null | sort -u | grep -v 'host,port' | awk '{ sub(/,/, ":") } 1' | sed '1d' | anew $hostport
+                csvcut -c ip,port $naabuout 2>/dev/null | sort -u | grep -v 'ip,port' | awk '{ sub(/,/, ":") } 1' | sed '1d' | anew $ipport
                 if [[ $nmap == "true" ]];then
                     mkdir -p $nmapscans
                     while read iphost; do
@@ -311,8 +332,10 @@ function portscanner(){
                     nmapconverter
                 fi
             else
-                naabu -host $1 -o $naabuout -csv
+                naabu -host $1 -top-ports 1000 -cdn -ec -o $naabuout -csv
                 cat $naabuout | cut -d ',' -f 2 | grep -v ip | anew $aliveip
+                #csvcut -c host,port $naabuout 2>/dev/null| sort -u | grep -v 'host,port' |awk '{ sub(/,/, ":") } 1' | sed '1d' | anew $hostport
+                csvcut -c ip,port $naabuout 2>/dev/null | sort -u | grep -v 'ip,port' | awk '{ sub(/,/, ":") } 1' | sed '1d' | anew $ipport
                     if [[ $nmap == "true" ]];then
                         mkdir -p $nmapscans
                         while read iphost; do
@@ -336,56 +359,58 @@ function iphttpx(){
     }
     techgorize(){
         # Apache Subdomains
-        csvcut -c url,technologies $httpxout | grep -E 'Apache' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-        csvcut -c url,technologies $httpxout | grep -E 'Apache' | cut -d ',' -f 1 | anew $apache
+        csvcut -c url,tech $httpxout 2>/dev/null| grep -E 'Apache' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,tech $httpxout 2>/dev/null| grep -E 'Apache' | cut -d ',' -f 1 | anew $apache
         cat $webtech | grep -E 'Apache' | cut -d , -f 1 | anew $apache
 
-        csvcut -c url,technologies $httpxout | grep -E 'Tomcat' | cut -d ',' -f 1,2 --output-delimiter=" ${MAGENTA}>>>${RESET} "
-        csvcut -c url,technologies $httpxout | grep -E 'Tomcat' | cut -d ',' -f 1 | anew $apachetomcat
+        csvcut -c url,tech $httpxout 2>/dev/null| grep -E 'Tomcat' | cut -d ',' -f 1,2 --output-delimiter=" ${MAGENTA}>>>${RESET} "
+        csvcut -c url,tech $httpxout 2>/dev/null| grep -E 'Tomcat' | cut -d ',' -f 1 | anew $apachetomcat
         cat $webtech | grep -E 'Tomcat' | cut -d , -f 1 | anew $apachetomcat
 
         # Nginx Subdomains
-        csvcut -c url,technologies $httpxout | grep -E 'Nginx' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-        csvcut -c url,technologies $httpxout | grep -E 'Nginx' | cut -d ',' -f 1 | anew $nginx
+        csvcut -c url,tech $httpxout 2>/dev/null| grep -E 'Nginx' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,tech $httpxout 2>/dev/null| grep -E 'Nginx' | cut -d ',' -f 1 | anew $nginx
 
         # IIS Subdomains
-        csvcut -c url,technologies $httpxout | grep -E 'IIS' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-        csvcut -c url,technologies $httpxout | grep -E 'IIS' | cut -d ',' -f 1 | anew $iis
+        csvcut -c url,tech $httpxout2 >/dev/null| grep -E 'IIS' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,tech $httpxout 2>/dev/null| grep -E 'IIS' | cut -d ',' -f 1 | anew $iis
         cat $webtech | grep -E 'IIS' | cut -d , -f 1 | anew $iis
 
 
         # Wordpress Subdomains
-        csvcut -c url,technologies $httpxout | grep -E 'Wordpress|WordPress' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-        csvcut -c url,technologies $httpxout | grep -E 'Wordpress|WordPress' | cut -d ',' -f 1 | anew $wp
+        csvcut -c url,tech $httpxout 2>/dev/null| grep -E 'Wordpress|WordPress' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,tech $httpxout 2>/dev/null| grep -E 'Wordpress|WordPress' | cut -d ',' -f 1 | anew $wp
         cat $webtech | grep -E 'WordPress|Wordpress' | cut -d , -f 1 | anew $wp
         
         # Joomla Subdomains
-        csvcut -c url,technologies $httpxout | grep -E 'Joomla' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-        csvcut -c url,technologies $httpxout | grep -E 'Joomla' | cut -d ',' -f 1 | anew $joomla
+        csvcut -c url,tech $httpxout 2>/dev/null| grep -E 'Joomla' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,tech $httpxout 2>/dev/null| grep -E 'Joomla' | cut -d ',' -f 1 | anew $joomla
         cat $webtech | grep -E 'Joomla' | cut -d , -f 1 | anew $joomla
 
         # Drupal Subdomains
-        csvcut -c url,technologies $httpxout | grep -E 'Drupal' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-        csvcut -c url,technologies $httpxout | grep -E 'Drupal' | cut -d ',' -f 1 | anew $drupal
+        csvcut -c url,tech $httpxout 2>/dev/null| grep -E 'Drupal' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,tech $httpxout 2>/dev/null| grep -E 'Drupal' | cut -d ',' -f 1 | anew $drupal
 
         # Jira Subdomains
-        csvcut -c url,technologies $httpxout | grep -E 'Jira' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-        csvcut -c url,technologies $httpxout | grep -E 'Jira' | cut -d ',' -f 1 | anew $jira
+        csvcut -c url,tech $httpxout 2>/dev/null| grep -E 'Jira' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,tech $httpxout 2>/dev/null| grep -E 'Jira' | cut -d ',' -f 1 | anew $jira
 
         # Gitlab Subdomains
-        csvcut -c url,technologies $httpxout | grep -E 'GitLab' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-        csvcut -c url,technologies $httpxout | grep -E 'GitLab' | cut -d ',' -f 1 | anew $gitl
+        csvcut -c url,tech $httpxout 2>/dev/null | grep -E 'GitLab' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,tech $httpxout 2>/dev/null | grep -E 'GitLab' | cut -d ',' -f 1 | anew $gitl
 
         # JBoss Subdomains
-        csvcut -c url,technologies $httpxout | grep -E 'JBoss' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-        csvcut -c url,technologies $httpxout | grep -E 'JBoss' | cut -d ',' -f 1 | anew $jboss
+        csvcut -c url,tech $httpxout 2>/dev/null | grep -E 'JBoss' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,tech $httpxout 2>/dev/null | grep -E 'JBoss' | cut -d ',' -f 1 | anew $jboss
 
         # BigIP Subdomains
-        csvcut -c url,technologies $httpxout | grep -E 'BigIP' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
-        csvcut -c url,technologies $httpxout | grep -E 'BigIP' | cut -d ',' -f 1 | anew $bigip
+        csvcut -c url,tech $httpxout 2>/dev/null| grep -E 'BigIP' | cut -d ',' -f 1,2 --output-delimiter="${MAGENTA}>>>${RESET}"
+        csvcut -c url,tech $httpxout 2>/dev/null| grep -E 'BigIP' | cut -d ',' -f 1 | anew $bigip
 
+        echo "WebTechCheck and Categorization Completed"
+        
         # Delete Empty Files in domain Folder
-        find Results/$project/$domain -type f -empty -print -delete
+        # find Results/$project/$domain -type f -empty -print -delete
 
         [ -f $sdc ] && echo -e "${GREEN}[+]${RESET}Total Subdomains [$(cat $sdc | wc -l)]"
         [ -f $psd ] && echo -e "${GREEN}[+]${RESET}Potential Subdomains [$(cat $psd | wc -l)]"
@@ -403,18 +428,23 @@ function iphttpx(){
     }
 
     if [ -f "$naabuout" ]; then
-        excludedports='21|22|445|3389'
+        excludedports='21|22|44 5|3389'
         webports=$(cat $naabuout | cut -d ',' -f 3 | sort -u | grep -v port | grep -vE $excludedports |xargs | sed -e 's/ /,/g')
         if [ -f "$1" ]; then
-            echo "cat $1 | httpx -p $webports -fr -sc -content-type -location -timeout 60 -retries 2 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout"
-            cat $1 | httpx -p $webports -fr -sc -content-type -location -timeout 60 -retries 2 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout
-            csvcut $httpxout -c url | grep -v url | anew $urlprobed
+            #echo "cat $1 | httpx -p $webports -fr -sc -content-type -location -timeout 60 -retries 2 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout"
+            #cat $1 | httpx -p $webports -fr -sc -content-type -location -timeout 60 -retries 2 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout
+            echo "cat $1 | httpx -fr -sc -content-type -location -timeout 60 -retries 2 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout"
+            cat $1 | httpx -fr -sc -content-type -location -timeout 60 -retries 2 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout
+            csvcut $httpxout -c url 2>/dev/null | grep -v url | anew $urlprobed
+            echo -e "[${GREEN}I${RESET}] HTTPX Probe Completed\n${RESET}"
+            echo -e "[${GREEN}I${RESET}] Running WebTechCheck\n${RESET}" 
             webtechcheck
             techgorize
         elif ! [ -f "$1" ]; then
             cat $naabuout | cut -d ',' -f 2 | grep -v 'ip' | sort -u | anew $aliveip
-            cat $aliveip | httpx -p $webports -fr -sc -content-type -location -timeout 60 -retries 3 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout
-            csvcut $httpxout -c url | grep -v url | anew $urlprobed
+            echo "cat $1 | httpx -fr -sc -content-type -location -timeout 60 -retries 3 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout"
+            cat $1 | httpx -fr -sc -content-type -location -timeout 60 -retries 3 -title -server -td -ip -cname -asn -cdn -vhost -pa -random-agent -csv -o $httpxout
+            csvcut $httpxout -c url 2>/dev/null| grep -v url | anew $urlprobed
             webtechcheck
             techgorize
         fi
