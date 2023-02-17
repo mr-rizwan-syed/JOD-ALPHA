@@ -18,30 +18,38 @@ Install Golang
 
 `./install.sh`
 
-`./JOD-ALPHA.sh -d target domain.com -all`
-
 ```
-└─# ./JOD-ALPHA.sh -h
+└─# ./chomte.sh
 
 
-     ██  ██████  ██████         █████  ██      ██████  ██   ██  █████
-     ██ ██    ██ ██   ██       ██   ██ ██      ██   ██ ██   ██ ██   ██
-     ██ ██    ██ ██   ██ █████ ███████ ██      ██████  ███████ ███████
-██   ██ ██    ██ ██   ██       ██   ██ ██      ██      ██   ██ ██   ██
- █████   ██████  ██████        ██   ██ ███████ ██      ██   ██ ██   ██
+ ██████╗██╗  ██╗ ██████╗ ███╗   ███╗████████╗███████╗   ███████╗██╗  ██╗
+██╔════╝██║  ██║██╔═══██╗████╗ ████║╚══██╔══╝██╔════╝   ██╔════╝██║  ██║
+██║     ███████║██║   ██║██╔████╔██║   ██║   █████╗     ███████╗███████║
+██║     ██╔══██║██║   ██║██║╚██╔╝██║   ██║   ██╔══╝     ╚════██║██╔══██║
+╚██████╗██║  ██║╚██████╔╝██║ ╚═╝ ██║   ██║   ███████╗██╗███████║██║  ██║
+ ╚═════╝╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═╝   ╚═╝   ╚══════╝╚═╝╚══════╝╚═╝  ╚═╝
+└─#
 
 ~~~~~~~~~~~
  U S A G E
 ~~~~~~~~~~~
-Usage: ./jod-alpha.sh [option]
-  options:
-    -d    : Specify Domain here, This will Gather Subdomains
-    -gau  : Gather All Subdomain URLs Only
-    -gf   : Gather Subdomain URLs and run GF Patterns - Choice Menu
-    -all  : Gather All Subdomain URLs and run GF Patterns - Auto
-    -rr   : ReRun, Do Assessment Again on the given Domain
-    -i    : Show interactive menu
-    -h    : Show this help
+Usage: ./chomtya.sh -p <ProjectName> -d <domain.com> -i <127.0.0.1> -brt -n
+Usage: ./chomtya.sh -p <ProjectName> -i <127.0.0.1> [option]
+
+  Mandatory Flags:
+    -p  | --project         : Specify Project Name here
+    -d  | --domain          : Specify Root Domain here / Domain List here
+    -i  | --ip              : Specify IP / CIDR/ IPlist here
+ Optional Flags
+    -n  | --nmap            : Nmap Scan against open ports
+    -brt | --dnsbrute       : DNS Recon Bruteforce
+    -h | --help             : Show this help
+
+Example: ./chomtya.sh -p projectname -d example.com -brt
+Example: ./chomtya.sh -p projectname -d Domains-list.txt
+Example: ./chomtya.sh -p projectname -i 127.0.0.1
+Example: ./chomtya.sh -p projectname -i IPs-list.txt -n
+
 ```
 
 ### Optional
