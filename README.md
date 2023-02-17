@@ -1,4 +1,4 @@
-# JOD-ALPHA
+# CHOMTE.SH
 
 1. Simple and modular code base making it easy to contribute.
 2. Fast And fully configurable flags to probe multiple elements.
