@@ -33,8 +33,8 @@ Install Golang
 ~~~~~~~~~~~
  U S A G E
 ~~~~~~~~~~~
-Usage: ./chomtya.sh -p <ProjectName> -d <domain.com> -i <127.0.0.1> -brt -n
-Usage: ./chomtya.sh -p <ProjectName> -i <127.0.0.1> [option]
+Usage: ./chomte.sh -p <ProjectName> -d <domain.com> -i <127.0.0.1> -brt -n
+Usage: ./chomte.sh -p <ProjectName> -i <127.0.0.1> [option]
 
   Mandatory Flags:
     -p  | --project         : Specify Project Name here
@@ -45,10 +45,10 @@ Usage: ./chomtya.sh -p <ProjectName> -i <127.0.0.1> [option]
     -brt | --dnsbrute       : DNS Recon Bruteforce
     -h | --help             : Show this help
 
-Example: ./chomtya.sh -p projectname -d example.com -brt
-Example: ./chomtya.sh -p projectname -d Domains-list.txt
-Example: ./chomtya.sh -p projectname -i 127.0.0.1
-Example: ./chomtya.sh -p projectname -i IPs-list.txt -n
+Example: ./chomte.sh -p projectname -d example.com -brt
+Example: ./chomte.sh -p projectname -d Domains-list.txt
+Example: ./chomte.sh -p projectname -i 127.0.0.1
+Example: ./chomte.sh -p projectname -i IPs-list.txt -n
 
 ```
 
