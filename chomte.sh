@@ -281,22 +281,29 @@ function iphttpx(){
 
 ####################################################################
 function rundomainscan(){
-    if [ -n "${domain}" ];then
+    if [ -n "${domain}" ] && [ ! -f "${domain}" ];then
         declared_paths
-        echo -e "Domain Module $domain $domainscan"
-        if [ -f "$domain" ]; then
-            mkdir -p Results/$project/$domain
-            portscanner $domain
-            iphttpx $hostport
-        else
-            mkdir -p Results/$project/$domain
-            getsubdomains $domain
-            dnsreconbrute
-            portscanner $subdomains
-            iphttpx $hostport
-        fi
+        echo -e "Domain Module $domain $domainscan - Domain Specified"
+        mkdir -p Results/$project/$domain
+        getsubdomains $domain
+        dnsreconbrute
+        portscanner $subdomains
+        iphttpx $hostport
+    elif [ -n "${domain}" ] && [ -f "${domain}" ];then
+        echo -e "Domain Module $domain $domainscan - List Specified"
+        mkdir -p Results/$project/Domain_List
+        # Declaring New Paths for Domain List
+        naabuout="Results/$project/Domain_List/naabu.csv"
+        nmapscans="Results/$project/Domain_List/nmapscans"
+        aliveip="Results/$project/Domain_List/aliveip.txt"
+        httpxout="Results/$project/Domain_List/httpxout.csv"
+        hostport="Results/$project/Domain_List/hostport.txt"
+        ipport="Results/$project/Domain_List/ipport.txt"
+        # Running Functions
+        portscanner $domain
+        iphttpx $hostport
     else
-        echo -e "${RED}[-] Domain not specified.. Check -d again${NC}"
+        echo -e "${RED}[-] Domain / Domain List not specified.. Check -d again${NC}"
     fi
 }
 
